@@ -227,7 +227,7 @@ export default function App() {
 
                   <h2 className="text-2xl font-black text-white tracking-tight mb-2">منصة الحوكمة الرقمية</h2>
                   <p className="text-xs text-slate-400 max-w-sm leading-relaxed mb-6">
-                   بوابة متكاملة لإدارة الاجتماعات، ومتابعة المعاملات، وقياس مؤشرات الأداء، وتعزيز مبادرات التحول الرقمي بكفاءة عالية.
+                   بوابة متكاملة لإدارة الاجتماعات، ومتابعة الخطابات وقياس مؤشرات الأداء، وتعزيز مبادرات التحول الرقمي بكفاءة عالية.
                   </p>
 
                   <form onSubmit={handleLogin} className="w-full text-right">
