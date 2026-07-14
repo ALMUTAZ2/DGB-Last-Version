@@ -1,0 +1,8 @@
+{
+  "name": "Remix: منصه الحوكمه اخر نسخه1",
+  "description": "نظام احترافي لتتبع الخطابات الواردة، مراقبة المواعيد النهائية، وإرسال التنبيهات للمديرين والموظفين.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "Letter": {
+      "title": "Letter",
+      "description": "Incoming official letters tracking record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the letter. Can match document ID." },
+        "entity_source": { "type": "string", "description": "Organization sending the letter" },
+        "letter_number": { "type": "string", "description": "Official reference number of the letter" },
+        "letter_date": { "type": "string", "format": "date", "description": "Date the letter was issued (YYYY-MM-DD)" },
+        "category": { "type": "string", "description": "Letter category or subject" },
+        "responsible_department": { "type": "string", "description": "Department assigned to handle the letter" },
+        "owner": { "type": "string", "description": "Individual owner assigned" },
+        "priority": { "type": "string", "enum": ["عالية", "متوسطة", "منخفضة"] },
+        "due_date": { "type": "string", "format": "date", "description": "Deadline for reply (YYYY-MM-DD)" },
+        "status": { "type": "string", "enum": ["جديد", "الحاقي", "مغلق"] },
+        "escalation": { "type": "string", "description": "Manual or automatic escalation comments" },
+        "action_taken": { "type": "string", "description": "Reply or actions taken" },
+        "close_date": { "type": "string", "format": "date", "description": "Date of closing the letter (YYYY-MM-DD)" },
+        "outgoing_letter_number": { "type": "string", "description": "Reply outgoing letter reference number" },
+        "outgoing_letter_date": { "type": "string", "format": "date", "description": "Reply outgoing letter date" },
+        "notes": { "type": "string", "description": "Additional notes and tracking updates" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["entity_source", "letter_number", "letter_date", "due_date", "status"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "System settings and credentials",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "description": "Configuration key name" },
+        "value": { "type": "string", "description": "Configuration value" }
+      },
+      "required": ["key", "value"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Application user account and permissions status",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "description": "User email address" },
+        "name": { "type": "string", "description": "Full name" },
+        "role": { "type": "string", "enum": ["manager", "staff"] }
+      },
+      "required": ["email", "role"]
+    },
+    "WhatsAppLog": {
+      "title": "WhatsAppLog",
+      "description": "WhatsApp alert dispatch log history",
+      "type": "object",
+      "properties": {
+        "recipient_phone": { "type": "string" },
+        "message_content": { "type": "string" },
+        "status": { "type": "string" },
+        "error_message": { "type": "string" },
+        "sent_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipient_phone", "message_content", "status", "sent_at"]
+    },
+    "Meeting": {
+      "title": "Meeting",
+      "description": "Executive governance meetings and schedules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer", "description": "Unique auto-incrementing ID" },
+        "type": { "type": "string", "description": "Type discriminator, must be meeting" },
+        "actionType": { "type": "string", "description": "Meeting category or action" },
+        "topic": { "type": "string", "description": "Discussion topic" },
+        "date": { "type": "string", "description": "Meeting date" },
+        "time": { "type": "string", "description": "Meeting time" },
+        "location": { "type": "string", "description": "Meeting location" },
+        "status": { "type": "string", "description": "Status of meeting" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "type", "actionType", "topic", "date", "time", "location", "status"]
+    }
+  },
+  "firestore": {
+    "/letters/{letterId}": {
+      "schema": "Letter",
+      "description": "Collection of tracked incoming letters"
+    },
+    "/reports/{reportId}": {
+      "schema": "Meeting",
+      "description": "Registered system governance meeting schedules"
+    },
+    "/settings/{settingId}": {
+      "schema": "Setting",
+      "description": "Global settings store"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Registered system users"
+    },
+    "/whatsapp_logs/{logId}": {
+      "schema": "WhatsAppLog",
+      "description": "History of dispatched notification reports"
+    }
+  }
+}
