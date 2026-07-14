@@ -25,7 +25,21 @@ import {
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [user, setUser] = useState<User | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => typeof window !== "undefined" ? window.innerWidth >= 1024 : true);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setIsSidebarOpen(true);
+      } else {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    // Initialize correct state on mount
+    handleResize();
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
   
   // Login states
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -271,17 +285,28 @@ export default function App() {
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
         user={user} 
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
       />
 
-      <main className="mr-64 p-8 transition-all duration-300">
-        <header className="flex items-center justify-between mb-12">
-          <div className="flex items-center gap-4 text-right" dir="rtl">
-            <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center font-bold text-emerald-600 text-sm select-none">
+      <main className="lg:mr-64 p-4 md:p-8 transition-all duration-300">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 md:mb-12">
+          <div className="flex items-center gap-3 text-right" dir="rtl">
+            {/* Mobile menu toggle */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="lg:hidden p-2.5 bg-white rounded-xl shadow-sm border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-200 transition-all cursor-pointer active:scale-95"
+              title="عرض القائمة"
+            >
+              <Menu size={22} />
+            </button>
+
+            <div className="w-12 h-12 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-center font-bold text-emerald-600 text-sm select-none shrink-0">
               {getUserInitials(user.name)}
             </div>
             <div>
-              <h1 className="text-lg font-bold text-slate-900">أهلاً بك، {user.name}</h1>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <h1 className="text-base md:text-lg font-bold text-slate-900 leading-tight">أهلاً بك، {user.name}</h1>
+              <p className="text-[10px] md:text-xs text-slate-400 mt-0.5">
                 {user.id === 76657 || String(user.id) === "76657"
                   ? "لديك صلاحية مدير العام"
                   : `لديك صلاحيات ${user.role === "manager" ? "المدير" : "الموظف"}`}
@@ -289,10 +314,10 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3 self-end md:self-auto">
             <button 
               onClick={switchRole}
-              className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
+              className="px-3 py-2 md:px-4 md:py-2 bg-white border border-slate-200 rounded-xl text-[10px] md:text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-95 shrink-0"
             >
               تبديل الصلاحية (للتجربة)
             </button>
@@ -300,7 +325,7 @@ export default function App() {
             {isLoggedIn && (
               <button 
                 onClick={handleLogout}
-                className="px-4 py-2 bg-rose-50 border border-rose-100 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-100/70 transition-all flex items-center gap-1.5 shadow-sm"
+                className="px-3 py-2 md:px-4 md:py-2 bg-rose-50 border border-rose-100 rounded-xl text-[10px] md:text-xs font-bold text-rose-600 hover:bg-rose-100/70 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
                 title="تسجيل الخروج"
               >
                 <LogOut size={14} />
@@ -308,9 +333,9 @@ export default function App() {
               </button>
             )}
 
-            <button className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-emerald-600 transition-all relative">
-              <Bell size={20} />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+            <button className="p-2.5 md:p-3 bg-white rounded-xl md:rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-emerald-600 transition-all relative shrink-0">
+              <Bell size={18} />
+              <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-red-500 rounded-full border-2 border-white"></span>
             </button>
           </div>
         </header>
