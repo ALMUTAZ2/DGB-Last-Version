@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Search, Filter, Plus, MoreVertical, Edit2, Trash2, CheckCircle2, AlertCircle, Clock, ExternalLink, X } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Letter, Priority, Status } from "../types";
+import { Letter, Priority, Status, User } from "../types";
 import { cn } from "../lib/utils";
 import LetterForm from "./LetterForm";
 
@@ -23,7 +23,7 @@ function getWorkingDaysElapsed(startDate: Date, endDate: Date): number {
   return workingDays;
 }
 
-export default function LetterList({ userRole }: { userRole: string }) {
+export default function LetterList({ userRole, currentUser }: { userRole: string; currentUser?: User }) {
   const [letters, setLetters] = useState<Letter[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -173,16 +173,26 @@ export default function LetterList({ userRole }: { userRole: string }) {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-slate-900">إدارة الخطابات</h2>
-        <button
-          onClick={() => {
-            setEditingLetter(null);
-            setIsFormOpen(true);
-          }}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-emerald-600/20"
-        >
-          <Plus size={20} />
-          <span>إضافة خطاب جديد</span>
-        </button>
+        {currentUser?.permission === "read" ? (
+          <div
+            className="bg-slate-100 text-slate-400 border border-slate-200 px-5 py-2.5 rounded-2xl flex items-center gap-2 font-bold cursor-not-allowed text-xs"
+            title="حسابك يملك صلاحية الاطلاع فقط. لا يمكنك إضافة خطابات."
+          >
+            <Plus size={18} />
+            <span>إضافة خطاب جديد (اطلاع فقط)</span>
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              setEditingLetter(null);
+              setIsFormOpen(true);
+            }}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-emerald-600/20 text-xs"
+          >
+            <Plus size={20} />
+            <span>إضافة خطاب جديد</span>
+          </button>
+        )}
       </div>
 
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
@@ -338,24 +348,40 @@ export default function LetterList({ userRole }: { userRole: string }) {
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              setEditingLetter(letter);
-                              setIsFormOpen(true);
-                            }}
-                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
-                            title="تعديل"
-                          >
-                            <Edit2 size={18} />
-                          </button>
-                          {userRole === "manager" && (
+                          {currentUser?.permission === "read" ? (
                             <button
-                              onClick={() => setDeletingId(letter.id)}
-                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                              title="حذف"
+                              onClick={() => {
+                                setEditingLetter(letter);
+                                setIsFormOpen(true);
+                              }}
+                              className="px-3 py-1.5 text-slate-500 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold"
+                              title="عرض تفاصيل الخطاب (اطلاع فقط)"
                             >
-                              <Trash2 size={18} />
+                              <ExternalLink size={14} />
+                              <span>عرض</span>
                             </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setEditingLetter(letter);
+                                  setIsFormOpen(true);
+                                }}
+                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                                title="تعديل"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              {userRole === "manager" && (
+                                <button
+                                  onClick={() => setDeletingId(letter.id)}
+                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                  title="حذف"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              )}
+                            </>
                           )}
                         </div>
                       )}
@@ -372,6 +398,7 @@ export default function LetterList({ userRole }: { userRole: string }) {
         {isFormOpen && (
           <LetterForm
             letter={editingLetter}
+            readOnly={currentUser?.permission === "read"}
             onClose={() => setIsFormOpen(false)}
             onSuccess={() => {
               setIsFormOpen(false);

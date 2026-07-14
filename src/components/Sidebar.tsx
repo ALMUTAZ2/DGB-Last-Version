@@ -1,4 +1,4 @@
-import { LayoutDashboard, Mail, BarChart3, Settings, LogOut, PlusCircle, Users, FileText, X } from "lucide-react";
+import { LayoutDashboard, Mail, BarChart3, Settings, LogOut, PlusCircle, Users, FileText, X, Shield } from "lucide-react";
 import { cn, getUserInitials } from "../lib/utils";
 import { User } from "../types";
 
@@ -12,20 +12,28 @@ interface SidebarProps {
 
 export default function Sidebar({ activeTab, setActiveTab, user, isOpen, onClose }: SidebarProps) {
   const userRole = user.role;
-  const menuItems = [
+  const menuItems: Array<{ id: string; label: string; icon: any; managerOnly?: boolean }> = [
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "letters", label: "الخطابات", icon: Mail },
     { id: "meetings", label: "الإجتماعات", icon: Users },
     { id: "meeting_summary", label: "تلخيص الاجتماعات", icon: FileText },
-    { id: "reports", label: "التقارير", icon: BarChart3, managerOnly: true },
+    { id: "reports", label: "التقارير", icon: BarChart3 },
     { id: "whatsapp", label: "إعدادات الواتساب", icon: Settings },
   ];
 
   const isGeneralManager = user.id === 76657 || String(user.id) === "76657";
+  const isSuperAdmin = user.id === 100889 || String(user.id) === "100889";
+
+  if (isSuperAdmin) {
+    menuItems.push({ id: "permissions", label: "الصلاحيات", icon: Shield });
+  }
+
   const initials = getUserInitials(user.name);
 
   let subtitle = "";
-  if (isGeneralManager) {
+  if (isSuperAdmin) {
+    subtitle = "Admin";
+  } else if (isGeneralManager) {
     subtitle = "المدير العام";
   } else if (userRole === "manager") {
     subtitle = "المدير العام";
@@ -67,7 +75,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, isOpen, onClose
 
         <nav className="flex-1 p-4 space-y-2">
           {menuItems.map((item) => {
-            if (item.managerOnly && userRole !== "manager") return null;
+            if (item.managerOnly && userRole !== "manager" && !isSuperAdmin) return null;
             const Icon = item.icon;
             return (
               <button

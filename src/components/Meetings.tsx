@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Plus, Search, MapPin, Clock, Calendar as CalendarIcon, X, Tag, Trash2, Activity, Edit2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Meeting } from "../types";
+import { Meeting, User } from "../types";
 
-export default function Meetings() {
+export default function Meetings({ currentUser }: { currentUser?: User }) {
+  const isReadOnly = currentUser?.permission === "read";
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -58,13 +59,23 @@ export default function Meetings() {
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-slate-900">الاجتماعات والمواعيد</h2>
-        <button
-          onClick={() => setIsFormOpen(true)}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-emerald-600/20"
-        >
-          <Plus size={20} />
-          <span>إضافة جديد</span>
-        </button>
+        {isReadOnly ? (
+          <div
+            className="bg-slate-100 text-slate-400 border border-slate-200 px-5 py-2.5 rounded-2xl flex items-center gap-2 font-bold cursor-not-allowed text-xs animate-none"
+            title="حسابك يملك صلاحية الاطلاع فقط. لا يمكنك إضافة مواعيد."
+          >
+            <Plus size={18} />
+            <span>إضافة جديد (اطلاع فقط)</span>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsFormOpen(true)}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-2xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-emerald-600/20 text-xs"
+          >
+            <Plus size={20} />
+            <span>إضافة جديد</span>
+          </button>
+        )}
       </div>
 
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
@@ -139,36 +150,52 @@ export default function Meetings() {
                     </td>
                     <td className="py-4">
                       <select
+                        disabled={isReadOnly}
                         value={meeting.status || 'تحت الاجراء'}
                         onChange={(e) => updateMeetingStatus(meeting.id, e.target.value)}
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold border outline-none cursor-pointer appearance-none ${
                           meeting.status === 'منتهي' 
                             ? 'bg-green-50 text-green-700 border-green-100 hover:bg-green-100' 
                             : 'bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100'
-                        }`}
+                        } ${isReadOnly ? "cursor-not-allowed opacity-80" : ""}`}
                       >
                         <option value="تحت الاجراء">تحت الاجراء</option>
                         <option value="منتهي">منتهي</option>
                       </select>
                     </td>
                     <td className="py-4 text-left flex items-center justify-end gap-2">
-                      <button 
-                        onClick={() => {
-                          setEditingMeeting(meeting);
-                          setIsFormOpen(true);
-                        }}
-                        className="p-2 text-slate-400 hover:bg-slate-100 hover:text-emerald-600 rounded-full transition-colors"
-                        title="تعديل"
-                      >
-                        <Edit2 size={16} />
-                      </button>
-                      <button 
-                        onClick={() => deleteMeeting(meeting.id)}
-                        className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-full transition-colors"
-                        title="حذف"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {isReadOnly ? (
+                        <button 
+                          onClick={() => {
+                            setEditingMeeting(meeting);
+                            setIsFormOpen(true);
+                          }}
+                          className="px-3 py-1.5 text-slate-500 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold"
+                          title="عرض التفاصيل (اطلاع فقط)"
+                        >
+                          عرض
+                        </button>
+                      ) : (
+                        <>
+                          <button 
+                            onClick={() => {
+                              setEditingMeeting(meeting);
+                              setIsFormOpen(true);
+                            }}
+                            className="p-2 text-slate-400 hover:bg-slate-100 hover:text-emerald-600 rounded-full transition-colors"
+                            title="تعديل"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                            onClick={() => deleteMeeting(meeting.id)}
+                            className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-full transition-colors"
+                            title="حذف"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
                     </td>
                   </motion.tr>
                 ))
@@ -182,6 +209,7 @@ export default function Meetings() {
         {isFormOpen && (
           <MeetingFormModal 
             meetingToEdit={editingMeeting}
+            isReadOnly={isReadOnly}
             onClose={() => {
               setIsFormOpen(false);
               setEditingMeeting(null);
@@ -198,7 +226,7 @@ export default function Meetings() {
   );
 }
 
-function MeetingFormModal({ meetingToEdit, onClose, onSuccess }: { meetingToEdit?: Meeting | null, onClose: () => void, onSuccess: () => void }) {
+function MeetingFormModal({ meetingToEdit, isReadOnly = false, onClose, onSuccess }: { meetingToEdit?: Meeting | null, isReadOnly?: boolean, onClose: () => void, onSuccess: () => void }) {
   const [formData, setFormData] = useState({
     actionType: meetingToEdit?.actionType || "إجتماع",
     topic: meetingToEdit?.topic || "",
@@ -238,7 +266,9 @@ function MeetingFormModal({ meetingToEdit, onClose, onSuccess }: { meetingToEdit
         className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden font-sans border border-slate-100"
       >
         <div className="p-6 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-xl font-bold text-slate-900">إضافة جديد</h3>
+          <h3 className="text-xl font-bold text-slate-900">
+            {meetingToEdit ? (isReadOnly ? "تفاصيل الإجراء (معاينة)" : "تعديل الإجراء") : "إضافة إجراء جديد"}
+          </h3>
           <button 
             type="button"
             onClick={onClose} 
@@ -249,6 +279,7 @@ function MeetingFormModal({ meetingToEdit, onClose, onSuccess }: { meetingToEdit
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <fieldset disabled={isReadOnly} className="space-y-5">
           <div className="space-y-1.5">
             <label className="text-sm font-bold text-slate-700 block">نوع الإجراء</label>
             <div className="relative">
@@ -337,21 +368,30 @@ function MeetingFormModal({ meetingToEdit, onClose, onSuccess }: { meetingToEdit
             </div>
           </div>
 
+          </fieldset>
+
           <div className="pt-4 flex items-center justify-end gap-3 mt-4">
             <button
               type="button"
               onClick={onClose}
               className="px-6 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-2xl transition-all"
             >
-              إلغاء
+              {isReadOnly ? "إغلاق المعاينة" : "إلغاء"}
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl font-bold transition-all shadow-md shadow-emerald-600/10 disabled:opacity-50"
-            >
-              {saving ? "جاري الحفظ..." : "حفظ"}
-            </button>
+            {!isReadOnly && (
+              <button
+                type="submit"
+                disabled={saving}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl font-bold transition-all shadow-md shadow-emerald-600/10 disabled:opacity-50"
+              >
+                {saving ? "جاري الحفظ..." : "حفظ"}
+              </button>
+            )}
+            {isReadOnly && (
+              <span className="text-xs font-bold px-4 py-2.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl">
+                ⚠️ وضع الاطلاع فقط
+              </span>
+            )}
           </div>
         </form>
       </motion.div>

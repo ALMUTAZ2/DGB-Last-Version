@@ -7,8 +7,48 @@ import Meetings from "./components/Meetings";
 import GovernanceSummarizer from "./components/meetings/governance/GovernanceSummarizer";
 import Reports from "./components/Reports";
 import WhatsAppSettings from "./components/WhatsAppSettings";
+import PermissionsManager from "./components/PermissionsManager";
 import { User } from "./types";
 import { getUserInitials } from "./lib/utils";
+
+// Fetch interceptor to automatically inject x-user-employee-id header for secure backend checks
+if (typeof window !== "undefined") {
+  const originalFetch = window.fetch;
+  const customFetch = function (this: any, input: RequestInfo | URL, init?: RequestInit) {
+    const empId = localStorage.getItem("loggedInEmployeeId");
+    if (empId) {
+      init = init || {};
+      init.headers = init.headers || {};
+      if (init.headers instanceof Headers) {
+        init.headers.set("x-user-employee-id", empId);
+      } else if (Array.isArray(init.headers)) {
+        const hasHeader = init.headers.some(([key]) => key.toLowerCase() === "x-user-employee-id");
+        if (!hasHeader) {
+          init.headers.push(["x-user-employee-id", empId]);
+        }
+      } else {
+        (init.headers as Record<string, string>)["x-user-employee-id"] = empId;
+      }
+    }
+    return originalFetch.call(this || window, input, init);
+  };
+
+  try {
+    Object.defineProperty(window, "fetch", {
+      value: customFetch,
+      configurable: true,
+      writable: true,
+      enumerable: true
+    });
+  } catch (e) {
+    console.warn("Could not overwrite window.fetch with defineProperty, trying direct assignment:", e);
+    try {
+      (window as any).fetch = customFetch;
+    } catch (err) {
+      console.error("Could not override fetch at all:", err);
+    }
+  }
+}
 import { 
   UserCircle, 
   Bell, 
@@ -44,6 +84,7 @@ export default function App() {
   // Login states
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [employeeIdInput, setEmployeeIdInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginSuccessName, setLoginSuccessName] = useState("");
@@ -93,10 +134,87 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Keep user permissions and profile in sync when switching tabs
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const empId = localStorage.getItem("loggedInEmployeeId");
+    const headers: Record<string, string> = {};
+    if (empId) {
+      headers["x-user-employee-id"] = empId;
+    }
+    fetch("/api/auth/me", { headers })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.id) {
+          setUser(data);
+        }
+      })
+      .catch((err) => console.error("Error refreshing permission on tab change:", err));
+  }, [activeTab, isLoggedIn]);
+
+  // Change Password states
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [currentPasswordInput, setCurrentPasswordInput] = useState("");
+  const [newPasswordInput, setNewPasswordInput] = useState("");
+  const [confirmNewPasswordInput, setConfirmNewPasswordInput] = useState("");
+  const [changePasswordError, setChangePasswordError] = useState("");
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState("");
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPasswordInput !== confirmNewPasswordInput) {
+      setChangePasswordError("كلمة المرور الجديدة غير متطابقة مع إعادة إدخالها.");
+      return;
+    }
+    if (newPasswordInput.length < 3) {
+      setChangePasswordError("يجب أن تكون كلمة المرور الجديدة مكونة من 3 خانات أو أكثر.");
+      return;
+    }
+    setIsChangingPassword(true);
+    setChangePasswordError("");
+    setChangePasswordSuccess("");
+
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          currentPassword: currentPasswordInput,
+          newPassword: newPasswordInput
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "فشل تغيير كلمة المرور");
+      }
+
+      setChangePasswordSuccess("تم تغيير كلمة المرور بنجاح!");
+      setCurrentPasswordInput("");
+      setNewPasswordInput("");
+      setConfirmNewPasswordInput("");
+      setTimeout(() => {
+        setIsChangePasswordOpen(false);
+        setChangePasswordSuccess("");
+      }, 2000);
+    } catch (err: any) {
+      setChangePasswordError(err.message || "حدث خطأ أثناء تغيير كلمة المرور");
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   const handleLogin = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!employeeIdInput) {
       setLoginError("الرجاء إدخال الرقم الوظيفي أولاً");
+      return;
+    }
+    if (!passwordInput) {
+      setLoginError("الرجاء إدخال كلمة المرور أولاً");
       return;
     }
     setLoginError("");
@@ -107,15 +225,22 @@ export default function App() {
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ employeeId: employeeIdInput })
+      body: JSON.stringify({ 
+        employeeId: employeeIdInput,
+        password: passwordInput
+      })
     })
-      .then((res) => {
-        if (!res.ok) {
-          return res.json().then((err) => {
-            throw new Error(err.error || "فشل تسجيل الدخول");
-          });
+      .then(async (res) => {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "فشل تسجيل الدخول");
+          }
+          return data;
+        } else {
+          throw new Error("الرقم الوظيفي غير مسجل في منصة الحكومة الرقمية أو حدث خطأ");
         }
-        return res.json();
       })
       .then((data) => {
         localStorage.setItem("loggedInEmployeeId", String(data.user.id));
@@ -125,9 +250,11 @@ export default function App() {
         setTimeout(() => {
           setUser(data.user);
           setIsLoggedIn(true);
+          setActiveTab("dashboard");
           setLoginSuccessName("");
           setIsLoggingIn(false);
           setEmployeeIdInput("");
+          setPasswordInput("");
         }, 1800);
       })
       .catch((err) => {
@@ -140,6 +267,7 @@ export default function App() {
     localStorage.removeItem("loggedInEmployeeId");
     setIsLoggedIn(false);
     setUser(null);
+    setActiveTab("dashboard");
     
     // Fetch default guest/manager profile to keep underlying render functional
     fetch("/api/auth/me")
@@ -251,6 +379,23 @@ export default function App() {
                       />
                     </div>
 
+                    <label className="block text-xs font-bold text-slate-300 mb-2 mr-1">
+                      كلمة المرور
+                    </label>
+                    <div className="relative mb-6">
+                      <input
+                        type="password"
+                        value={passwordInput}
+                        onChange={(e) => {
+                          setPasswordInput(e.target.value);
+                          setLoginError("");
+                        }}
+                        placeholder="••••••••"
+                        className="w-full px-5 py-4 bg-slate-800/80 border border-slate-700 text-center text-lg font-mono font-bold rounded-2xl text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all placeholder:text-slate-500 tracking-widest text-slate-100"
+                        disabled={isLoggingIn}
+                      />
+                    </div>
+
                     {loginError && (
                       <motion.div
                         initial={{ opacity: 0, y: -5 }}
@@ -264,15 +409,22 @@ export default function App() {
 
                     <button
                       type="submit"
-                      disabled={isLoggingIn || !employeeIdInput}
+                      disabled={isLoggingIn || !employeeIdInput || !passwordInput}
                       className={`w-full py-4 rounded-2xl font-bold text-sm text-white shadow-lg transition-all flex items-center justify-center gap-2 ${
-                        isLoggingIn || !employeeIdInput
+                        isLoggingIn || !employeeIdInput || !passwordInput
                           ? "bg-slate-800 text-slate-500 cursor-not-allowed shadow-none border border-slate-700/30"
                           : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] shadow-emerald-950/40 hover:shadow-xl hover:shadow-emerald-500/10"
                       }`}
                     >
                       {isLoggingIn ? "جاري التحقق والدخول..." : "تسجيل الدخول"}
                     </button>
+
+                    {/* Dynamic Credentials Helpful Tip */}
+                    <div className="mt-5 p-3.5 bg-slate-800/40 border border-slate-800/90 rounded-2xl text-right">
+                      <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
+                        💡 <span className="text-emerald-400 font-semibold">تلميح :</span> كلمة المرور لبقية الموظفين الخاصة بهم هي <span className="font-mono text-slate-200">123</span>.
+                      </p>
+                    </div>
                   </form>
                 </div>
               )}
@@ -307,7 +459,9 @@ export default function App() {
             <div>
               <h1 className="text-base md:text-lg font-bold text-slate-900 leading-tight">أهلاً بك، {user.name}</h1>
               <p className="text-[10px] md:text-xs text-slate-400 mt-0.5">
-                {user.id === 76657 || String(user.id) === "76657"
+                {user.id === 100889 || String(user.id) === "100889"
+                  ? "لديك صلاحيات Admin و الصفة الإدارية Admin"
+                  : user.id === 76657 || String(user.id) === "76657"
                   ? "لديك صلاحية مدير العام"
                   : `لديك صلاحيات ${user.role === "manager" ? "المدير" : "الموظف"}`}
               </p>
@@ -323,14 +477,25 @@ export default function App() {
             </button>
             
             {isLoggedIn && (
-              <button 
-                onClick={handleLogout}
-                className="px-3 py-2 md:px-4 md:py-2 bg-rose-50 border border-rose-100 rounded-xl text-[10px] md:text-xs font-bold text-rose-600 hover:bg-rose-100/70 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
-                title="تسجيل الخروج"
-              >
-                <LogOut size={14} />
-                <span>تسجيل الخروج</span>
-              </button>
+              <>
+                <button 
+                  onClick={() => setIsChangePasswordOpen(true)}
+                  className="px-3 py-2 md:px-4 md:py-2 bg-amber-50 hover:bg-amber-100/70 border border-amber-100 rounded-xl text-[10px] md:text-xs font-bold text-amber-700 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                  title="تغيير كلمة المرور"
+                >
+                  <Key size={14} />
+                  <span>تغيير كلمة المرور</span>
+                </button>
+
+                <button 
+                  onClick={handleLogout}
+                  className="px-3 py-2 md:px-4 md:py-2 bg-rose-50 border border-rose-100 rounded-xl text-[10px] md:text-xs font-bold text-rose-600 hover:bg-rose-100/70 transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0"
+                  title="تسجيل الخروج"
+                >
+                  <LogOut size={14} />
+                  <span>تسجيل الخروج</span>
+                </button>
+              </>
             )}
 
             <button className="p-2.5 md:p-3 bg-white rounded-xl md:rounded-2xl shadow-sm border border-slate-100 text-slate-400 hover:text-emerald-600 transition-all relative shrink-0">
@@ -349,14 +514,142 @@ export default function App() {
             transition={{ duration: 0.2 }}
           >
             {activeTab === "dashboard" && <Dashboard />}
-            {activeTab === "letters" && <LetterList userRole={user.role} />}
-            {activeTab === "meetings" && <Meetings />}
+            {activeTab === "letters" && <LetterList userRole={user.role} currentUser={user} />}
+            {activeTab === "meetings" && <Meetings currentUser={user} />}
             {activeTab === "meeting_summary" && <GovernanceSummarizer />}
-            {activeTab === "reports" && user.role === "manager" && <Reports />}
-            {activeTab === "whatsapp" && <WhatsAppSettings />}
+            {activeTab === "reports" && <Reports />}
+            {activeTab === "whatsapp" && <WhatsAppSettings currentUser={user} />}
+            {activeTab === "permissions" && (user.id === 100889 || String(user.id) === "100889") && <PermissionsManager />}
           </motion.div>
         </AnimatePresence>
       </main>
+
+      {/* Change Password Modal */}
+      <AnimatePresence>
+        {isChangePasswordOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden text-right font-sans"
+              dir="rtl"
+            >
+              <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Key className="text-emerald-600 animate-pulse" size={20} />
+                  تغيير كلمة المرور
+                </h3>
+              </div>
+
+              <form onSubmit={handleChangePassword}>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-2 mr-1">
+                      كلمة المرور الحالية
+                    </label>
+                    <input
+                      type="password"
+                      value={currentPasswordInput}
+                      onChange={(e) => {
+                        setCurrentPasswordInput(e.target.value);
+                        setChangePasswordError("");
+                        setChangePasswordSuccess("");
+                      }}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 text-right text-sm rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all placeholder:text-slate-400"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-2 mr-1">
+                      كلمة المرور الجديدة
+                    </label>
+                    <input
+                      type="password"
+                      value={newPasswordInput}
+                      onChange={(e) => {
+                        setNewPasswordInput(e.target.value);
+                        setChangePasswordError("");
+                        setChangePasswordSuccess("");
+                      }}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 text-right text-sm rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all placeholder:text-slate-400"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-2 mr-1">
+                      إعادة كلمة المرور الجديدة
+                    </label>
+                    <input
+                      type="password"
+                      value={confirmNewPasswordInput}
+                      onChange={(e) => {
+                        setConfirmNewPasswordInput(e.target.value);
+                        setChangePasswordError("");
+                        setChangePasswordSuccess("");
+                      }}
+                      placeholder="••••••••"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 text-right text-sm rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500 transition-all placeholder:text-slate-400"
+                      required
+                    />
+                  </div>
+
+                  {changePasswordError && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-start gap-2 p-3 bg-rose-50 border border-rose-100 text-rose-600 text-xs rounded-xl"
+                    >
+                      <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                      <span>{changePasswordError}</span>
+                    </motion.div>
+                  )}
+
+                  {changePasswordSuccess && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs rounded-xl"
+                    >
+                      <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                      <span>{changePasswordSuccess}</span>
+                    </motion.div>
+                  )}
+                </div>
+
+                <div className="p-6 pt-4 flex items-center gap-2 border-t border-slate-100 bg-slate-50/50">
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-500/10 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    {isChangingPassword ? "جاري التغيير..." : "حفظ كلمة المرور الجديدة"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsChangePasswordOpen(false);
+                      setCurrentPasswordInput("");
+                      setNewPasswordInput("");
+                      setConfirmNewPasswordInput("");
+                      setChangePasswordError("");
+                      setChangePasswordSuccess("");
+                    }}
+                    disabled={isChangingPassword}
+                    className="px-5 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition-all"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

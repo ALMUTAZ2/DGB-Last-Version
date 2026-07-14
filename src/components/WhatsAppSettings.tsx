@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Send, CheckCircle, AlertTriangle, Key, Phone, Clock, FileText, Eye, EyeOff } from "lucide-react";
 import { motion } from "motion/react";
+import { User } from "../types";
 
 interface WhatsAppLog {
   id: number;
@@ -11,7 +12,8 @@ interface WhatsAppLog {
   sent_at: string;
 }
 
-export default function WhatsAppSettings() {
+export default function WhatsAppSettings({ currentUser }: { currentUser?: User }) {
+  const isReadOnly = currentUser?.permission === "read";
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -172,41 +174,58 @@ export default function WhatsAppSettings() {
             <Key size={32} />
           </div>
           <h3 className="text-xl font-bold text-slate-800 mb-2">ربط وتنبيهات WhatsApp</h3>
-          <p className="text-xs text-slate-400 mb-8">الرجاء إدخال الرقم السري المكون من 6 رموز للوصول والتعديل</p>
           
-          <div className="space-y-4">
-            <input 
-              type="password"
-              value={passwordInput}
-              onChange={(e) => {
-                setPasswordInput(e.target.value);
-                setPasswordError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleVerifyPassword();
-              }}
-              placeholder="أدخل الرقم السري هنا..."
-              className="w-full text-center px-4 py-3 bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 font-sans tracking-widest text-lg focus:outline-none"
-              dir="ltr"
-            />
-            
-            {passwordError && (
-              <motion.p 
-                initial={{ opacity: 0, y: -5 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                className="text-red-500 text-sm font-bold bg-red-50 py-2.5 px-4 rounded-xl border border-red-100"
+          {isReadOnly ? (
+            <div className="space-y-6">
+              <p className="text-xs text-slate-500 leading-relaxed">
+                حسابك يملك صلاحية الاطلاع فقط بالمنصة. يمكنك استعراض الإعدادات وقراءة سجلات التنبيهات دون صلاحية التعديل أو إرسال اختبارات.
+              </p>
+              <button 
+                onClick={() => setIsUnlocked(true)}
+                className="w-full bg-emerald-600 text-white py-3 rounded-2xl font-bold hover:bg-emerald-500 transition-all flex items-center justify-center gap-2 mt-2"
               >
-                {passwordError}
-              </motion.p>
-            )}
+                استعراض الإعدادات (اطلاع فقط)
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-slate-400 mb-8">الرجاء إدخال الرقم السري المكون من 6 رموز للوصول والتعديل</p>
+              
+              <div className="space-y-4">
+                <input 
+                  type="password"
+                  value={passwordInput}
+                  onChange={(e) => {
+                    setPasswordInput(e.target.value);
+                    setPasswordError("");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleVerifyPassword();
+                  }}
+                  placeholder="أدخل الرقم السري هنا..."
+                  className="w-full text-center px-4 py-3 bg-slate-50 border border-slate-200 focus:border-emerald-500 rounded-2xl focus:ring-2 focus:ring-emerald-500/20 font-sans tracking-widest text-lg focus:outline-none"
+                  dir="ltr"
+                />
+                
+                {passwordError && (
+                  <motion.p 
+                    initial={{ opacity: 0, y: -5 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    className="text-red-500 text-sm font-bold bg-red-50 py-2.5 px-4 rounded-xl border border-red-100"
+                  >
+                    {passwordError}
+                  </motion.p>
+                )}
 
-            <button 
-              onClick={handleVerifyPassword}
-              className="w-full bg-slate-900 text-white py-3 rounded-2xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 mt-2"
-            >
-              تأكيد الرقم السري
-            </button>
-          </div>
+                <button 
+                  onClick={handleVerifyPassword}
+                  className="w-full bg-slate-900 text-white py-3 rounded-2xl font-bold hover:bg-slate-800 transition-all flex items-center justify-center gap-2 mt-2"
+                >
+                  تأكيد الرقم السري
+                </button>
+              </div>
+            </>
+          )}
         </motion.div>
       </div>
     );
@@ -284,6 +303,7 @@ export default function WhatsAppSettings() {
         {/* نموذج الإعدادات والتحقق */}
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-6">
+            <fieldset disabled={isReadOnly} className="space-y-6">
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Phone size={20} className="text-emerald-600" />
               <span>
@@ -558,36 +578,47 @@ export default function WhatsAppSettings() {
                 </div>
               </div>
             ) : null}
+            </fieldset>
 
             <div className="flex items-center justify-between border-t border-slate-100 pb-2 pt-4">
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <span>{saving ? "جاري الحفظ..." : "حفظ الإعدادات"}</span>
-                </button>
-                {saved && (
-                  <span className="text-emerald-600 text-xs font-bold animate-pulse">تم الحفظ بنجاح</span>
+                {isReadOnly ? (
+                  <div className="text-amber-700 bg-amber-50 border border-amber-200 px-4 py-2 rounded-xl text-xs font-bold">
+                    ⚠️ وضع الاطلاع فقط
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span>{saving ? "جاري الحفظ..." : "حفظ الإعدادات"}</span>
+                    </button>
+                    {saved && (
+                      <span className="text-emerald-600 text-xs font-bold animate-pulse">تم الحفظ بنجاح</span>
+                    )}
+                  </>
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => handleTestSend(activeRoleTab)}
-                disabled={
-                  testing ||
-                  (activeRoleTab === "manager" ? !recipientPhone : (activeRoleTab === "meeting" ? !meetingRecipientPhone : !contributorRecipientPhone))
-                }
-                className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/10"
-              >
-                <Send size={14} />
-                <span>
-                  {testing ? "جاري الإرسال للتجربة..." : `إرسال تجريبي ${activeRoleTab === "manager" ? "المدير" : (activeRoleTab === "meeting" ? "الاجتماعات" : "المساهم")} فوراً`}
-                </span>
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={() => handleTestSend(activeRoleTab)}
+                  disabled={
+                    testing ||
+                    (activeRoleTab === "manager" ? !recipientPhone : (activeRoleTab === "meeting" ? !meetingRecipientPhone : !contributorRecipientPhone))
+                  }
+                  className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-600/10"
+                >
+                  <Send size={14} />
+                  <span>
+                    {testing ? "جاري الإرسال للتجربة..." : `إرسال تجريبي ${activeRoleTab === "manager" ? "المدير" : (activeRoleTab === "meeting" ? "الاجتماعات" : "المساهم")} فوراً`}
+                  </span>
+                </button>
+              )}
             </div>
           </div>
 

@@ -5,6 +5,7 @@ import { Letter, Priority, Status } from "../types";
 
 interface LetterFormProps {
   letter?: Letter | null;
+  readOnly?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -23,7 +24,7 @@ function addWorkingDays(startDate: Date, days: number): Date {
   return result;
 }
 
-export default function LetterForm({ letter, onClose, onSuccess }: LetterFormProps) {
+export default function LetterForm({ letter, readOnly = false, onClose, onSuccess }: LetterFormProps) {
   const [formData, setFormData] = useState<Partial<Letter>>({
     entity_source: "",
     letter_number: "",
@@ -103,7 +104,7 @@ export default function LetterForm({ letter, onClose, onSuccess }: LetterFormPro
       >
         <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <h3 className="text-xl font-bold text-slate-900">
-            {letter ? "تعديل بيانات الخطاب" : "إضافة خطاب جديد"}
+            {letter ? (readOnly ? "تفاصيل الخطاب (معاينة)" : "تعديل بيانات الخطاب") : "إضافة خطاب جديد"}
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-all">
             <X size={20} />
@@ -111,6 +112,7 @@ export default function LetterForm({ letter, onClose, onSuccess }: LetterFormPro
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 overflow-y-auto space-y-8">
+          <fieldset disabled={readOnly} className="space-y-8">
           {error && (
             <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-600 text-sm font-bold">
               <AlertCircle size={18} />
@@ -260,22 +262,31 @@ export default function LetterForm({ letter, onClose, onSuccess }: LetterFormPro
             </div>
           )}
 
+          </fieldset>
+
           <div className="flex items-center justify-end gap-4 pt-4 border-t border-slate-100">
             <button
               type="button"
               onClick={onClose}
               className="px-6 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-2xl transition-all"
             >
-              إلغاء
+              {readOnly ? "إغلاق المعاينة" : "إلغاء"}
             </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50"
-            >
-              <Save size={20} />
-              <span>{loading ? "جاري الحفظ..." : "حفظ البيانات"}</span>
-            </button>
+            {!readOnly && (
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-2xl flex items-center gap-2 font-bold transition-all shadow-lg shadow-emerald-600/20 disabled:opacity-50"
+              >
+                <Save size={20} />
+                <span>{loading ? "جاري الحفظ..." : "حفظ البيانات"}</span>
+              </button>
+            )}
+            {readOnly && (
+              <span className="text-xs font-bold px-4 py-2.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl">
+                ⚠️ وضع الاطلاع فقط
+              </span>
+            )}
           </div>
         </form>
       </motion.div>

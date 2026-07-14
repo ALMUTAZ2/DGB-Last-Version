@@ -12,7 +12,7 @@ import { EMPLOYEES } from "./src/data/employees";
 
 // Firebase Server SDK Setup
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, doc, getDocs, getDoc, setDoc, deleteDoc, addDoc } from "firebase/firestore";
+import { getFirestore, collection, doc, getDocs, getDoc, setDoc, deleteDoc, addDoc, writeBatch } from "firebase/firestore";
 
 dotenv.config();
 
@@ -26,10 +26,54 @@ const TIMEZONE = "Asia/Riyadh";
 async function ensureSeedAndSetup() {
   try {
     const usersSnap = await getDocs(collection(firestoreDb, "users"));
+    
+    // Create a set of existing user/employee IDs already stored in Firestore
+    const existingIds = new Set<string>();
+    usersSnap.forEach(d => {
+      existingIds.add(String(d.id));
+      const data = d.data();
+      if (data && data.id) {
+        existingIds.add(String(data.id));
+      }
+    });
+
+    console.log(`[Server Init] Found ${existingIds.size} existing user entries in Firestore.`);
+
+    // If empty, set the default special test users "1" and "2"
     if (usersSnap.empty) {
-      console.log("[Server Init] Seeding Firestore users...");
-      await setDoc(doc(firestoreDb, "users", "1"), { email: "manager@example.com", name: "المدير العام", role: "manager" });
-      await setDoc(doc(firestoreDb, "users", "2"), { email: "staff@example.com", name: "موظف المتابعة", role: "staff" });
+      console.log("[Server Init] Seeding special default users...");
+      await setDoc(doc(firestoreDb, "users", "1"), { id: 1, email: "manager@example.com", name: "المدير العام", role: "manager", permission: "write" });
+      await setDoc(doc(firestoreDb, "users", "2"), { id: 2, email: "staff@example.com", name: "موظف المتابعة", role: "staff", permission: "read" });
+      existingIds.add("1");
+      existingIds.add("2");
+    }
+
+    // Filter employees from src/data/employees.ts who aren't currently seeded in Firestore
+    const missingEmployees = EMPLOYEES.filter(emp => !existingIds.has(String(emp.id)));
+
+    if (missingEmployees.length > 0) {
+      console.log(`[Server Init] Seeding ${missingEmployees.length} missing employees to Firestore...`);
+      
+      const chunkSize = 200;
+      for (let i = 0; i < missingEmployees.length; i += chunkSize) {
+        const chunk = missingEmployees.slice(i, i + chunkSize);
+        const batch = writeBatch(firestoreDb);
+        
+        for (const emp of chunk) {
+          const userDocRef = doc(firestoreDb, "users", String(emp.id));
+          batch.set(userDocRef, {
+            id: emp.id,
+            name: emp.name,
+            email: `${emp.id}@governance.gov.sa`,
+            role: "staff",
+            permission: emp.id === 100889 ? "write" : "read"
+          });
+        }
+        
+        await batch.commit();
+        console.log(`[Server Init] Committed batch of ${chunk.length} employees.`);
+      }
+      console.log("[Server Init] Seeding of all employees completed successfully!");
     }
   } catch (err) {
     console.error("[Server Init] Users seeding failed:", err);
@@ -848,6 +892,7 @@ startMasterSchedule();
           if (String(empId) === "76657") {
             userData.role = "manager";
           }
+          userData.permission = Number(empId) === 100889 ? "write" : (userData.permission || "read");
           return res.json(userData);
         }
       }
@@ -858,24 +903,26 @@ startMasterSchedule();
         const u = d.data();
         if (u.email === email) user = u;
       });
-      res.json(user || { email, role: "staff" });
+      if (user) {
+        user.permission = Number(user.id) === 100889 ? "write" : (user.permission || "read");
+      }
+      res.json(user || { email, role: "staff", permission: "read" });
     } catch (e) {
-      res.json({ email, role: "staff" });
+      res.json({ email, role: "staff", permission: "read" });
     }
   });
 
   app.post("/api/auth/login-by-id", async (req, res) => {
-    const { employeeId } = req.body;
+    const { employeeId, password } = req.body;
     if (!employeeId) {
       return res.status(400).json({ success: false, error: "يرجى إدخال الرقم الوظيفي" });
+    }
+    if (!password) {
+      return res.status(400).json({ success: false, error: "يرجى إدخال كلمة المرور" });
     }
     const parsedId = Number(employeeId);
     if (isNaN(parsedId)) {
       return res.status(400).json({ success: false, error: "الرقم الوظيفي يجب أن يحتوي على أرقام فقط" });
-    }
-    const emp = EMPLOYEES.find(e => e.id === parsedId);
-    if (!emp) {
-      return res.status(404).json({ success: false, error: "الرقم الوظيفي غير مسجل في منصة الحكومة الرقمية. يرجى التحقق من الرقم والتحول للموظفين المسجلين." });
     }
 
     try {
@@ -884,20 +931,45 @@ startMasterSchedule();
       let userData: any;
 
       if (!userSnap.exists()) {
+        const emp = EMPLOYEES.find(e => e.id === parsedId);
+        if (!emp) {
+          return res.status(404).json({ success: false, error: "الرقم الوظيفي غير مسجل في منصة الحكومة الرقمية. يرجى التحقق من الرقم والتحول للموظفين المسجلين." });
+        }
+
+        // Verify with Default Password
+        const defaultPassword = parsedId === 100889 ? "100889*" : "123";
+        if (password !== defaultPassword) {
+          return res.status(401).json({ success: false, error: "كلمة المرور غير صحيحة" });
+        }
+
         userData = {
           id: parsedId,
           name: emp.name,
           email: `${parsedId}@governance.gov.sa`,
-          role: parsedId === 76657 ? "manager" : "staff"
+          role: parsedId === 76657 ? "manager" : "staff",
+          permission: parsedId === 100889 ? "write" : "read",
+          isDeleted: false,
+          password: defaultPassword
         };
         await setDoc(userDocRef, userData);
         console.log(`[Server] Registered new employee user in Firestore: ${emp.name} (${parsedId})`);
       } else {
         userData = userSnap.data();
+        if (userData && userData.isDeleted) {
+          return res.status(404).json({ success: false, error: "الرقم الوظيفي غير مسجل في منصة الحكومة الرقمية. يرجى التحقق من الرقم والتحول للموظفين المسجلين." });
+        }
+
+        // Verify with Custom stored password or default
+        const expectedPassword = userData.password || (parsedId === 100889 ? "100889*" : "123");
+        if (password !== expectedPassword) {
+          return res.status(401).json({ success: false, error: "كلمة المرور غير صحيحة" });
+        }
+
         if (parsedId === 76657) {
           userData.role = "manager";
         }
       }
+      userData.permission = parsedId === 100889 ? "write" : (userData.permission || "read");
 
       return res.json({ success: true, user: userData });
     } catch (e: any) {
@@ -906,8 +978,90 @@ startMasterSchedule();
     }
   });
 
+  app.post("/api/auth/change-password", async (req, res) => {
+    const empId = req.headers["x-user-employee-id"];
+    const { currentPassword, newPassword } = req.body;
+
+    if (!empId) {
+      return res.status(401).json({ success: false, error: "غير مصرح بالدخول" });
+    }
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, error: "يرجى إدخال كلمة المرور الحالية والجديدة" });
+    }
+
+    const parsedId = Number(empId);
+    try {
+      const userDocRef = doc(firestoreDb, "users", String(parsedId));
+      const userSnap = await getDoc(userDocRef);
+      let userData: any;
+      let expectedPassword = parsedId === 100889 ? "100889*" : "123";
+
+      if (userSnap.exists()) {
+        userData = userSnap.data();
+        if (userData && userData.isDeleted) {
+          return res.status(404).json({ success: false, error: "المستخدم غير موجود" });
+        }
+        if (userData.password) {
+          expectedPassword = userData.password;
+        }
+      } else {
+        const emp = EMPLOYEES.find(e => e.id === parsedId);
+        if (!emp) {
+          return res.status(404).json({ success: false, error: "الموظف غير مسجل" });
+        }
+        userData = {
+          id: parsedId,
+          name: emp.name,
+          email: `${parsedId}@governance.gov.sa`,
+          role: parsedId === 76657 ? "manager" : "staff",
+          permission: parsedId === 100889 ? "write" : "read",
+          isDeleted: false
+        };
+      }
+
+      if (currentPassword !== expectedPassword) {
+        return res.status(400).json({ success: false, error: "كلمة المرور الحالية غير صحيحة" });
+      }
+
+      userData.password = newPassword;
+      await setDoc(userDocRef, userData);
+
+      return res.json({ success: true, message: "تم تغيير كلمة المرور بنجاح" });
+    } catch (e: any) {
+      console.error("[Server] Error in change-password:", e);
+      return res.status(500).json({ success: false, error: e.message || "حدث خطأ أثناء الاتصال بقاعدة البيانات" });
+    }
+  });
+
   // Supporting updating role dynamically for a user in Firestore
-  app.post("/api/auth/update-role", async (req, res) => {
+  async function checkWritePermission(req: any, res: any, next: any) {
+    const empId = req.headers["x-user-employee-id"];
+    if (!empId) {
+      return next();
+    }
+    try {
+      const parsedId = Number(empId);
+      if (parsedId === 100889) {
+        return next();
+      }
+      const userDocRef = doc(firestoreDb, "users", String(parsedId));
+      const userSnap = await getDoc(userDocRef);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        if (userData.permission === "read") {
+          return res.status(403).json({
+            success: false,
+            error: "عذراً، لديك صلاحية الاطلاع فقط ولا يمكنك إجراء أي تعديلات أو إضافة بيانات جديدة."
+          });
+        }
+      }
+      next();
+    } catch (e) {
+      next();
+    }
+  }
+
+  app.post("/api/auth/update-role", checkWritePermission, async (req, res) => {
     const { employeeId, role } = req.body;
     if (!employeeId || !role) {
       return res.status(400).json({ success: false, error: "البيانات ناقصة" });
@@ -921,6 +1075,123 @@ startMasterSchedule();
     }
   });
 
+  app.get("/api/permissions", async (req, res) => {
+    try {
+      const snap = await getDocs(collection(firestoreDb, "users"));
+      const users: any[] = [];
+      snap.forEach(d => {
+        const data = d.data();
+        if (data && data.isDeleted) return; // Skip deleted users
+        const parsedId = Number(data.id || d.id);
+        if (!parsedId) return;
+        const emp = EMPLOYEES.find(e => e.id === parsedId);
+        users.push({
+          id: parsedId,
+          name: data.name || (emp ? emp.name : `موظف ${parsedId}`),
+          email: data.email || `${parsedId}@governance.gov.sa`,
+          role: data.role || "staff",
+          permission: parsedId === 100889 ? "write" : (data.permission || "read")
+        });
+      });
+
+      // Ensure 100889 is always included and has write permission
+      if (!users.some(u => u.id === 100889)) {
+        users.push({
+          id: 100889,
+          name: "المعتز محمد علي ابوطالب",
+          email: "100889@governance.gov.sa",
+          role: "staff",
+          permission: "write"
+        });
+      }
+
+      res.json(users);
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post("/api/permissions/add", checkWritePermission, async (req, res) => {
+    const { employeeId, name, permission } = req.body;
+    if (!employeeId || !name) {
+      return res.status(400).json({ success: false, error: "الرجاء إدخال الرقم الوظيفي والاسم" });
+    }
+    const parsedId = Number(employeeId);
+    if (isNaN(parsedId)) {
+      return res.status(400).json({ success: false, error: "الرقم الوظيفي يجب أن يكون رقماً" });
+    }
+    try {
+      const userDocRef = doc(firestoreDb, "users", String(parsedId));
+      const userData = {
+        id: parsedId,
+        name: name,
+        email: `${parsedId}@governance.gov.sa`,
+        role: "staff",
+        permission: parsedId === 100889 ? "write" : (permission || "read"),
+        isDeleted: false // Reset isDeleted flag in case they were previously deleted
+      };
+      await setDoc(userDocRef, userData);
+      res.json({ success: true, user: userData });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post("/api/permissions/delete", checkWritePermission, async (req, res) => {
+    const { employeeId } = req.body;
+    if (!employeeId) {
+      return res.status(400).json({ success: false, error: "الرقم الوظيفي مطلوب" });
+    }
+    const parsedId = Number(employeeId);
+    if (parsedId === 100889) {
+      return res.status(400).json({ success: false, error: "لا يمكن حذف حساب المسؤول العام" });
+    }
+    try {
+      const userDocRef = doc(firestoreDb, "users", String(parsedId));
+      const userSnap = await getDoc(userDocRef);
+      if (userSnap.exists()) {
+        const existingData = userSnap.data();
+        await setDoc(userDocRef, {
+          ...existingData,
+          isDeleted: true,
+          id: parsedId,
+          name: existingData.name || `موظف ${parsedId}`,
+          email: existingData.email || `${parsedId}@governance.gov.sa`,
+          role: existingData.role || "staff",
+          permission: existingData.permission || "read"
+        });
+      } else {
+        const emp = EMPLOYEES.find(e => e.id === parsedId);
+        await setDoc(userDocRef, {
+          id: parsedId,
+          name: emp ? emp.name : `موظف ${parsedId}`,
+          email: `${parsedId}@governance.gov.sa`,
+          role: "staff",
+          permission: "read",
+          isDeleted: true
+        });
+      }
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
+  app.post("/api/permissions/update", checkWritePermission, async (req, res) => {
+    const { employeeId, permission } = req.body;
+    if (!employeeId || !permission) {
+      return res.status(400).json({ success: false, error: "البيانات غير مكتملة" });
+    }
+    const parsedId = Number(employeeId);
+    try {
+      const userDocRef = doc(firestoreDb, "users", String(parsedId));
+      await setDoc(userDocRef, { permission: parsedId === 100889 ? "write" : permission }, { merge: true });
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   app.get("/api/meetings", async (req, res) => {
     try {
       const allMeetings = await getMeetingsFromFirestore();
@@ -930,7 +1201,7 @@ startMasterSchedule();
     }
   });
 
-  app.post("/api/meetings", async (req, res) => {
+  app.post("/api/meetings", checkWritePermission, async (req, res) => {
     const { actionType, topic, date, time, location, status } = req.body;
     try {
       const meetings = await getMeetingsFromFirestore();
@@ -953,7 +1224,7 @@ startMasterSchedule();
     }
   });
 
-  app.put("/api/meetings/:id", async (req, res) => {
+  app.put("/api/meetings/:id", checkWritePermission, async (req, res) => {
     try {
       const idToFind = String(req.params.id);
       const snapshot = await getDocs(collection(firestoreDb, "reports"));
@@ -983,7 +1254,7 @@ startMasterSchedule();
     }
   });
 
-  app.delete("/api/meetings/:id", async (req, res) => {
+  app.delete("/api/meetings/:id", checkWritePermission, async (req, res) => {
     try {
       const idToFind = String(req.params.id);
       console.log(`Deleting meeting with id: ${idToFind}`);
@@ -1049,7 +1320,7 @@ startMasterSchedule();
     }
   });
 
-  app.post("/api/letters", async (req, res) => {
+  app.post("/api/letters", checkWritePermission, async (req, res) => {
     const {
       entity_source, letter_number, letter_date, category,
       responsible_department, owner, priority, due_date,
@@ -1086,7 +1357,7 @@ startMasterSchedule();
     }
   });
 
-  app.put("/api/letters/:id", async (req, res) => {
+  app.put("/api/letters/:id", checkWritePermission, async (req, res) => {
     const { id } = req.params;
     const body = req.body;
 
@@ -1109,7 +1380,7 @@ startMasterSchedule();
     }
   });
 
-  app.delete("/api/letters/:id", async (req, res) => {
+  app.delete("/api/letters/:id", checkWritePermission, async (req, res) => {
     const { id } = req.params;
     try {
       await deleteDoc(doc(firestoreDb, "letters", String(id)));
@@ -1173,7 +1444,22 @@ startMasterSchedule();
       closedLetters.forEach(l => {
         const start = new Date(l.letter_date);
         const end = new Date(l.close_date);
-        totalResponseTime += (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+        
+        const current = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+        const target = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+        
+        let workingDays = 0;
+        if (current < target) {
+          const temp = new Date(current);
+          while (temp < target) {
+            temp.setDate(temp.getDate() + 1);
+            const day = temp.getDay();
+            if (day !== 5 && day !== 6) { // Exclude Friday (5) and Saturday (6)
+              workingDays++;
+            }
+          }
+        }
+        totalResponseTime += workingDays;
       });
 
       const avgResponseTime = closedLetters.length > 0 ? (totalResponseTime / closedLetters.length).toFixed(1) : 0;
@@ -1258,7 +1544,7 @@ function addMinutesToTime(timeStr: string, minutesToAdd: number): string {
   return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
 }
 
-  app.post("/api/whatsapp-config", async (req, res) => {
+  app.post("/api/whatsapp-config", checkWritePermission, async (req, res) => {
     try {
       const body = req.body;
       const updates: any = {};

@@ -27,6 +27,7 @@ export interface User {
   email: string;
   name: string;
   role: 'manager' | 'staff';
+  permission?: 'read' | 'write';
 }
 
 export interface Meeting {
