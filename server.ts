@@ -805,22 +805,10 @@ export async function runSchedulerCheck() {
         console.log(`[Scheduler] Triggering Manager Fixed Report at ${timeStr}`);
         await sendWhatsAppReport("manager");
       }
-      
-      if (timeStr === managerCronTime && !isAlreadySent("last_sent_manager_cron")) {
-        await markAsSent("last_sent_manager_cron");
-        console.log(`[Scheduler] Triggering Manager Alert at ${timeStr}`);
-        await sendWhatsAppReport("manager");
-      }
 
       if (timeStr === contributorFixedTime && !isAlreadySent("last_sent_contributor_fixed")) {
         await markAsSent("last_sent_contributor_fixed");
         console.log(`[Scheduler] Triggering Contributor Fixed Report at ${timeStr}`);
-        await sendWhatsAppReport("contributor");
-      }
-
-      if (timeStr === contributorCronTime && !isAlreadySent("last_sent_contributor_cron")) {
-        await markAsSent("last_sent_contributor_cron");
-        console.log(`[Scheduler] Triggering Contributor Alert at ${timeStr}`);
         await sendWhatsAppReport("contributor");
       }
 

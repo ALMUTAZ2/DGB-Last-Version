@@ -358,16 +358,14 @@ export default function LetterList({ userRole, currentUser }: { userRole: string
                             >
                               <Edit2 size={18} />
                             </button>
-                            {currentUser?.permission !== "read" && (
-                              <button
-                                type="button"
-                                onClick={() => setDeletingId(letter.id)}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                title="حذف"
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              onClick={() => setDeletingId(letter.id)}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                              title="حذف"
+                            >
+                              <Trash2 size={18} />
+                            </button>
                           </>
                         )}
                       </div>

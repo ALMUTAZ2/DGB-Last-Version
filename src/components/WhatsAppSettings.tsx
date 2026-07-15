@@ -329,7 +329,7 @@ export default function WhatsAppSettings({ currentUser }: { currentUser?: User }
                   <p className="text-[11px] text-slate-400">الرقم الافتراضي المعتمد والمبرمج للإرسال التلقائي للمدير هو <span className="font-bold text-slate-700 bg-slate-100 px-1 rounded font-mono text-xs">+966507668366</span></p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5 md:col-span-1">
                     <label className="text-xs font-bold text-slate-500">معرف رقم الهاتف المرسل (Phone Number ID)</label>
                     <input
@@ -361,26 +361,6 @@ export default function WhatsAppSettings({ currentUser }: { currentUser?: User }
                           setContributorFixedTime(val);
                         }}
                         className="w-full pr-11 pl-4 py-3 bg-emerald-50/40 border border-emerald-100/60 rounded-2xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-mono text-center font-bold text-emerald-950"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 md:col-span-1">
-                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
-                      <span>توقيت التنبيه الاختياري الآخر</span>
-                      <span>⚙️</span>
-                    </label>
-                    <div className="flex items-center gap-2 relative">
-                      <Clock size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-450" />
-                      <input
-                        type="time"
-                        value={cronTime}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setCronTime(val);
-                          setContributorCronTime(val);
-                        }}
-                        className="w-full pr-11 pl-4 py-3 bg-slate-50 border border-transparent rounded-2xl focus:bg-white focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all font-mono text-center font-bold text-slate-800"
                       />
                     </div>
                   </div>
@@ -428,7 +408,7 @@ export default function WhatsAppSettings({ currentUser }: { currentUser?: User }
                   <p className="text-[11px] text-slate-400">الرقم المعتمد للمساهم الذي توصل له إشعارات الخطابات غير المصعدة هو <span className="font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-mono text-xs">+966566889475</span></p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5 md:col-span-1">
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-slate-500">معرف رقم الهاتف المرسل للمساهم (Phone Number ID)</label>
@@ -456,25 +436,6 @@ export default function WhatsAppSettings({ currentUser }: { currentUser?: User }
                       <input
                         type="time"
                         value={contributorFixedTime}
-                        readOnly
-                        className="w-full pr-11 pl-4 py-3 bg-slate-100 border border-transparent rounded-2xl text-slate-500 font-mono text-center font-bold cursor-not-allowed"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 md:col-span-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
-                        <span>توقيت التنبيه الاختياري الآخر</span>
-                        <span>⚙️</span>
-                      </label>
-                      <span className="text-[10px] bg-emerald-50 text-emerald-800 px-1 py-0.5 rounded font-bold">⏱️ + دقيقتين</span>
-                    </div>
-                    <div className="flex items-center gap-2 relative">
-                      <Clock size={16} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="time"
-                        value={contributorCronTime}
                         readOnly
                         className="w-full pr-11 pl-4 py-3 bg-slate-100 border border-transparent rounded-2xl text-slate-500 font-mono text-center font-bold cursor-not-allowed"
                       />
