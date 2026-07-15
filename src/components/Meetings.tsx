@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Search, MapPin, Clock, Calendar as CalendarIcon, X, Tag, Trash2, Activity, Edit2 } from "lucide-react";
+import { Plus, Search, MapPin, Clock, Calendar as CalendarIcon, X, Tag, Trash2, Activity, Edit2, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Meeting, User } from "../types";
 
@@ -10,6 +10,7 @@ export default function Meetings({ currentUser }: { currentUser?: User }) {
   const [search, setSearch] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMeeting, setEditingMeeting] = useState<Meeting | null>(null);
+  const [deletingMeetingId, setDeletingMeetingId] = useState<number | null>(null);
 
   const fetchMeetings = async () => {
     setLoading(true);
@@ -188,7 +189,8 @@ export default function Meetings({ currentUser }: { currentUser?: User }) {
                             <Edit2 size={16} />
                           </button>
                           <button 
-                            onClick={() => deleteMeeting(meeting.id)}
+                            type="button"
+                            onClick={() => setDeletingMeetingId(meeting.id)}
                             className="p-2 text-red-400 hover:bg-red-50 hover:text-red-600 rounded-full transition-colors"
                             title="حذف"
                           >
@@ -221,6 +223,80 @@ export default function Meetings({ currentUser }: { currentUser?: User }) {
             }} 
           />
         )}
+      </AnimatePresence>
+
+      {/* نافذة تأكيد حذف الموعد/الاجتماع */}
+      <AnimatePresence>
+        {deletingMeetingId !== null && (() => {
+          const meetingToDelete = meetings.find(m => m.id === deletingMeetingId);
+          if (!meetingToDelete) return null;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm font-sans" dir="rtl">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 overflow-hidden"
+              >
+                <div className="p-6 bg-red-50 border-b border-red-100 flex items-center gap-3">
+                  <div className="p-2.5 bg-red-100 text-red-600 rounded-full">
+                    <AlertCircle size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-950">تأكيد حذف الموعد/الاجتماع</h3>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">تحذير: لا يمكن التراجع عن هذا الإجراء</p>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl text-xs space-y-2 text-slate-700 border border-slate-100">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-slate-500">نوع الإجراء:</span>
+                      <span className="font-bold text-slate-900">{meetingToDelete.actionType}</span>
+                    </div>
+                    <div className="flex justify-between text-right">
+                      <span className="font-medium text-slate-500 shrink-0">الموضوع:</span>
+                      <span className="font-bold text-slate-950 truncate max-w-[200px]" title={meetingToDelete.topic}>
+                        {meetingToDelete.topic || "بلا موضوع"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-slate-500">التاريخ والوقت:</span>
+                      <span className="font-semibold text-slate-800">{meetingToDelete.date} - {meetingToDelete.time}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-slate-500">المكان:</span>
+                      <span className="font-semibold text-slate-800">{meetingToDelete.location}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 text-center font-medium leading-relaxed">
+                    هل أنت متأكد من رغبتك في حذف هذا الموعد/الاجتماع نهائياً؟
+                  </p>
+                </div>
+
+                <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setDeletingMeetingId(null)}
+                    className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await deleteMeeting(deletingMeetingId);
+                      setDeletingMeetingId(null);
+                    }}
+                    className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-bold transition-all shadow-lg shadow-red-600/25 cursor-pointer active:scale-95"
+                  >
+                    تأكيد الحذف
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

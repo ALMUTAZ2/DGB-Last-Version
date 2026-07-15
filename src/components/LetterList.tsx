@@ -331,60 +331,46 @@ export default function LetterList({ userRole, currentUser }: { userRole: string
                       </select>
                     </td>
                     <td className="py-4">
-                      {deletingId === letter.id ? (
-                        <div className="flex items-center gap-1.5 bg-red-50 p-1.5 rounded-xl border border-red-100 font-sans">
+                      <div className="flex items-center gap-2">
+                        {currentUser?.permission === "read" ? (
                           <button
-                            onClick={() => handleDelete(letter.id)}
-                            className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all"
+                            type="button"
+                            onClick={() => {
+                              setEditingLetter(letter);
+                              setIsFormOpen(true);
+                            }}
+                            className="px-3 py-1.5 text-slate-500 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold"
+                            title="عرض تفاصيل الخطاب (اطلاع فقط)"
                           >
-                            تأكيد
+                            <ExternalLink size={14} />
+                            <span>عرض</span>
                           </button>
-                          <button
-                            onClick={() => setDeletingId(null)}
-                            className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-xs font-medium transition-all"
-                          >
-                            إلغاء
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          {currentUser?.permission === "read" ? (
+                        ) : (
+                          <>
                             <button
+                              type="button"
                               onClick={() => {
                                 setEditingLetter(letter);
                                 setIsFormOpen(true);
                               }}
-                              className="px-3 py-1.5 text-slate-500 bg-slate-100 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold"
-                              title="عرض تفاصيل الخطاب (اطلاع فقط)"
+                              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                              title="تعديل"
                             >
-                              <ExternalLink size={14} />
-                              <span>عرض</span>
+                              <Edit2 size={18} />
                             </button>
-                          ) : (
-                            <>
+                            {currentUser?.permission !== "read" && (
                               <button
-                                onClick={() => {
-                                  setEditingLetter(letter);
-                                  setIsFormOpen(true);
-                                }}
-                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
-                                title="تعديل"
+                                type="button"
+                                onClick={() => setDeletingId(letter.id)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
+                                title="حذف"
                               >
-                                <Edit2 size={18} />
+                                <Trash2 size={18} />
                               </button>
-                              {userRole === "manager" && (
-                                <button
-                                  onClick={() => setDeletingId(letter.id)}
-                                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                                  title="حذف"
-                                >
-                                  <Trash2 size={18} />
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      )}
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </motion.tr>
                 ))
@@ -580,6 +566,73 @@ export default function LetterList({ userRole, currentUser }: { userRole: string
             </motion.div>
           </div>
         )}
+      </AnimatePresence>
+
+      {/* نافذة تأكيد حذف الخطاب */}
+      <AnimatePresence>
+        {deletingId !== null && (() => {
+          const letterToDelete = letters.find(l => l.id === deletingId);
+          if (!letterToDelete) return null;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm font-sans" dir="rtl">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-slate-100 overflow-hidden"
+              >
+                <div className="p-6 bg-red-50 border-b border-red-100 flex items-center gap-3">
+                  <div className="p-2.5 bg-red-100 text-red-600 rounded-full">
+                    <AlertCircle size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-950">تأكيد حذف الخطاب</h3>
+                    <p className="text-xs text-slate-500 font-medium mt-0.5">تحذير: لا يمكن التراجع عن هذا الإجراء</p>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div className="bg-slate-50 p-4 rounded-2xl text-xs space-y-2 text-slate-700 border border-slate-100">
+                    <div className="flex justify-between">
+                      <span className="font-medium text-slate-500">رقم الخطاب:</span>
+                      <span className="font-bold text-slate-900 font-mono">{letterToDelete.letter_number}</span>
+                    </div>
+                    <div className="flex justify-between text-right">
+                      <span className="font-medium text-slate-500 shrink-0">الموضوع:</span>
+                      <span className="font-bold text-slate-950 truncate max-w-[200px]" title={letterToDelete.category}>
+                        {letterToDelete.category || "بلا موضوع"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium text-slate-500">الجهة الوارد منها:</span>
+                      <span className="font-semibold text-slate-800">{letterToDelete.entity_source}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600 text-center font-medium leading-relaxed">
+                    هل أنت متأكد من رغبتك في حذف هذا الخطاب نهائياً من النظام؟
+                  </p>
+                </div>
+
+                <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setDeletingId(null)}
+                    className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-2xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(deletingId)}
+                    className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-bold transition-all shadow-lg shadow-red-600/25 cursor-pointer active:scale-95"
+                  >
+                    تأكيد الحذف
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );
