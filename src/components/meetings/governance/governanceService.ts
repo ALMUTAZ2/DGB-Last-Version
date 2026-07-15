@@ -102,38 +102,37 @@ export interface GovernanceStep {
   id: number;
   label: string;
   status: GovernanceStepStatus;
-  model?: string;
 }
 
 export const initialSteps: GovernanceStep[] = [
   {
     id: 1,
-    label: "📝 تنقية النص",
+    label: "تنظيف النص وترتيبه",
     status: "pending"
   },
   {
     id: 2,
-    label: "🧠 تحليل الاجتماع",
+    label: "تحليل الاجتماع",
     status: "pending"
   },
   {
     id: 3,
-    label: "📊 استخراج المؤشرات",
+    label: "تدقيق المؤشرات",
     status: "pending"
   },
   {
     id: 4,
-    label: "✅ استخراج المهام والقرارات",
+    label: "تدقيق المهام والمخاطر",
     status: "pending"
   },
   {
     id: 5,
-    label: "🔍 مراجعة الجودة",
+    label: "مراجعة المضمون",
     status: "pending"
   },
   {
     id: 6,
-    label: "📄 إعداد التقرير التنفيذي",
+    label: "إنتاج التقرير التنفيذي",
     status: "pending"
   }
 ];
@@ -1752,36 +1751,140 @@ async function callGroq(
   options:
     CallOptions = {}
 ): Promise<string> {
-  try {
-    const response = await fetch("/api/governance/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        provider: "groq",
-        model,
-        system,
-        user,
-        options
-      }),
-      signal: options.signal
-    });
+  const apiKey =
+    getGroqApiKey();
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const errText = errData.error || await response.text();
-      throw new Error(errText);
-    }
-
-    const data = await response.json();
-    return data.content || "";
-  } catch (error: any) {
-    throw createHttpError(
-      `Groq Error: ${error.message}`,
-      500
+  if (!apiKey) {
+    throw new Error(
+      "GROQ_API_KEY غير موجود."
     );
   }
+
+  const createBody = (
+    strictSchema: boolean
+  ): Record<
+    string,
+    unknown
+  > => {
+    const body: Record<
+      string,
+      unknown
+    > = {
+      model,
+
+      messages: [
+        {
+          role: "system",
+          content: system
+        },
+        {
+          role: "user",
+          content: user
+        }
+      ],
+
+      temperature:
+        options.temperature ??
+        0
+    };
+
+    if (
+      options.maxOutputTokens
+    ) {
+      body.max_completion_tokens =
+        options.maxOutputTokens;
+    }
+
+    if (
+      options.jsonSchema &&
+      strictSchema
+    ) {
+      body.response_format = {
+        type: "json_schema",
+
+        json_schema: {
+          name:
+            "meeting_review",
+
+          strict: true,
+
+          schema:
+            options.jsonSchema
+        }
+      };
+    } else if (
+      options.jsonMode ||
+      options.jsonSchema
+    ) {
+      body.response_format = {
+        type: "json_object"
+      };
+    }
+
+    return body;
+  };
+
+  const sendRequest = (
+    strictSchema: boolean
+  ): Promise<Response> => {
+    return fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+
+        headers: {
+          Authorization:
+            `Bearer ${apiKey}`,
+
+          "Content-Type":
+            "application/json"
+        },
+
+        body:
+          JSON.stringify(
+            createBody(
+              strictSchema
+            )
+          ),
+
+        signal:
+          options.signal
+      }
+    );
+  };
+
+  let response =
+    await sendRequest(true);
+
+  if (
+    !response.ok &&
+    response.status === 400 &&
+    options.jsonSchema
+  ) {
+    response =
+      await sendRequest(false);
+  }
+
+  if (
+    !response.ok
+  ) {
+    const errorText =
+      await response.text();
+
+    throw createHttpError(
+      `Groq Error: ${response.status} ${errorText}`,
+      response.status
+    );
+  }
+
+  const data =
+    await response.json();
+
+  return (
+    data?.choices?.[0]
+      ?.message?.content ||
+    ""
+  );
 }
 
 async function callGemini(
@@ -1791,36 +1894,146 @@ async function callGemini(
   options:
     CallOptions = {}
 ): Promise<string> {
-  try {
-    const response = await fetch("/api/governance/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        provider: "gemini",
-        model,
-        system,
-        user,
-        options
-      }),
-      signal: options.signal
-    });
+  const apiKey =
+    getGeminiApiKey();
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const errText = errData.error || await response.text();
-      throw new Error(errText);
-    }
-
-    const data = await response.json();
-    return data.content || "";
-  } catch (error: any) {
-    throw createHttpError(
-      `Gemini Error: ${error.message}`,
-      500
+  if (!apiKey) {
+    throw new Error(
+      "GEMINI_API_KEY غير موجود."
     );
   }
+
+  const generationConfig:
+    Record<
+      string,
+      unknown
+    > = {
+      temperature:
+        options.temperature ??
+        0
+    };
+
+  if (
+    options.maxOutputTokens
+  ) {
+    generationConfig.maxOutputTokens =
+      options.maxOutputTokens;
+  }
+
+  if (
+    options.jsonMode
+  ) {
+    generationConfig.responseMimeType =
+      "application/json";
+  }
+
+  const enhancedPrompt =
+    options.jsonMode
+      ? `${user}
+
+تعليمات الإخراج:
+
+- أخرج JSON صالحًا فقط.
+- لا تستخدم Markdown.
+- لا تستخدم علامات \`\`\`.
+- لا تكتب نصًا خارج JSON.
+- استخدم مصفوفة فارغة عند عدم وجود عناصر.
+- لا ترجع العناصر النموذجية الفارغة.
+- لا تكتب عنصرًا نصه "غير محدد".
+
+قالب هذه المرحلة:
+
+${JSON.stringify(
+  options.jsonTemplate ||
+    {},
+  null,
+  2
+)}
+
+${options.jsonExtraInstructions || ""}
+`
+      : user;
+
+  const response =
+    await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json"
+        },
+
+        body:
+          JSON.stringify({
+            contents: [
+              {
+                role: "user",
+
+                parts: [
+                  {
+                    text:
+                      enhancedPrompt
+                  }
+                ]
+              }
+            ],
+
+            systemInstruction: {
+              parts: [
+                {
+                  text:
+                    system
+                }
+              ]
+            },
+
+            generationConfig
+          }),
+
+        signal:
+          options.signal
+      }
+    );
+
+  if (
+    !response.ok
+  ) {
+    const errorText =
+      await response.text();
+
+    throw createHttpError(
+      `Gemini Error: ${response.status} ${errorText}`,
+      response.status
+    );
+  }
+
+  const data =
+    await response.json();
+
+  const parts =
+    data?.candidates?.[0]
+      ?.content?.parts;
+
+  if (
+    !Array.isArray(parts)
+  ) {
+    return "";
+  }
+
+  return parts
+    .map(
+      (
+        part: {
+          text?: string;
+        }
+      ) =>
+        part?.text ||
+        ""
+    )
+    .join("")
+    .trim();
 }
 
 async function runWithFallback(
@@ -5866,43 +6079,91 @@ export const governanceService = {
       file: File
     ): Promise<string> => {
       try {
-        const fileBase64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = () => {
-            const result = reader.result as string;
-            const base64 = result.split(",")[1];
-            resolve(base64);
-          };
-          reader.onerror = (error) => reject(error);
-        });
+        const apiKey =
+          getGroqApiKey();
 
-        const response = await fetch("/api/governance/transcribe", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            fileBase64,
-            fileName: file.name,
-            fileType: file.type
-          })
-        });
-
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({}));
-          const errText = errData.error || await response.text();
-          throw new Error(errText);
+        if (!apiKey) {
+          throw new Error(
+            "مفتاح Groq غير موجود."
+          );
         }
 
-        const data = await response.json();
-        if (!data?.text || typeof data.text !== "string") {
-          throw new Error("لم ترجع خدمة التفريغ نصًا صالحًا.");
+        const formData =
+          new FormData();
+
+        formData.append(
+          "file",
+          file
+        );
+
+        formData.append(
+          "model",
+          "whisper-large-v3"
+        );
+
+        formData.append(
+          "language",
+          "ar"
+        );
+
+        formData.append(
+          "response_format",
+          "json"
+        );
+
+        formData.append(
+          "temperature",
+          "0"
+        );
+
+        const response =
+          await fetch(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            {
+              method:
+                "POST",
+
+              headers: {
+                Authorization:
+                  `Bearer ${apiKey}`
+              },
+
+              body:
+                formData
+            }
+          );
+
+        if (
+          !response.ok
+        ) {
+          const errorBody =
+            await response.text();
+
+          throw createHttpError(
+            `Groq transcription error: ${response.status} ${errorBody}`,
+            response.status
+          );
         }
 
-        return data.text.trim();
+        const data =
+          await response.json();
+
+        if (
+          !data?.text ||
+          typeof data.text !==
+            "string"
+        ) {
+          throw new Error(
+            "لم ترجع خدمة التفريغ نصًا صالحًا."
+          );
+        }
+
+        return data.text
+          .trim();
       } catch (error) {
-        throw formatUserFriendlyError(error);
+        throw formatUserFriendlyError(
+          error
+        );
       }
     },
 
