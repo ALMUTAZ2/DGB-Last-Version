@@ -179,6 +179,10 @@ const ANALYSIS_MODELS: ModelConfig[] = [
   {
     provider: "gemini",
     model: "gemini-2.5-flash"
+  },
+  {
+    provider: "groq",
+    model: "openai/gpt-oss-120b"
   }
 ];
 
