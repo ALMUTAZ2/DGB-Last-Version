@@ -18,13 +18,13 @@ export default function Sidebar({ activeTab, setActiveTab, user, isOpen, onClose
     { id: "meetings", label: "الإجتماعات", icon: Users },
     { id: "meeting_summary", label: "تلخيص الاجتماعات", icon: FileText },
     { id: "reports", label: "التقارير", icon: BarChart3 },
-    { id: "whatsapp", label: "إعدادات الواتساب", icon: Settings },
   ];
 
   const isGeneralManager = user.id === 76657 || String(user.id) === "76657";
   const isSuperAdmin = user.id === 100889 || String(user.id) === "100889";
 
   if (isSuperAdmin) {
+    menuItems.push({ id: "whatsapp", label: "إعدادات الواتساب", icon: Settings });
     menuItems.push({ id: "permissions", label: "الصلاحيات", icon: Shield });
   }
 

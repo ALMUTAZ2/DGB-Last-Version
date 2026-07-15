@@ -469,13 +469,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3 self-end md:self-auto">
-            <button 
-              onClick={switchRole}
-              className="px-3 py-2 md:px-4 md:py-2 bg-white border border-slate-200 rounded-xl text-[10px] md:text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm active:scale-95 shrink-0"
-            >
-              تبديل الصلاحية (للتجربة)
-            </button>
-            
             {isLoggedIn && (
               <>
                 <button 
@@ -518,7 +511,7 @@ export default function App() {
             {activeTab === "meetings" && <Meetings currentUser={user} />}
             {activeTab === "meeting_summary" && <GovernanceSummarizer />}
             {activeTab === "reports" && <Reports />}
-            {activeTab === "whatsapp" && <WhatsAppSettings currentUser={user} />}
+            {activeTab === "whatsapp" && (user.id === 100889 || String(user.id) === "100889") && <WhatsAppSettings currentUser={user} />}
             {activeTab === "permissions" && (user.id === 100889 || String(user.id) === "100889") && <PermissionsManager />}
           </motion.div>
         </AnimatePresence>

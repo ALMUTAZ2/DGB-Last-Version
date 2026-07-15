@@ -1288,7 +1288,11 @@ startMasterSchedule();
 
       if (status) filtered = filtered.filter(l => l.status === status);
       if (priority) filtered = filtered.filter(l => l.priority === priority);
-      if (department) filtered = filtered.filter(l => l.responsible_department === department);
+      if (department) {
+        const norm = (str: string) => String(str || "").replace(/\s+/g, "").replace(/[أإآا]/g, "ا").replace(/[–\-]/g, "-").replace(/و/g, "");
+        const targetNorm = norm(String(department));
+        filtered = filtered.filter(l => l.responsible_department && norm(l.responsible_department) === targetNorm);
+      }
       if (search) {
         const q = String(search).toLowerCase();
         filtered = filtered.filter(l => 

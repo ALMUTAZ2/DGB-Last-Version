@@ -23,12 +23,23 @@ function getWorkingDaysElapsed(startDate: Date, endDate: Date): number {
   return workingDays;
 }
 
+const DEPARTMENTS = [
+  "دائرة التشغيل و الصيانة - الشرق",
+  "دائرة التشغيل و الصيانة - الغرب",
+  "دائرة دعم التشغيل و الصيانة",
+  "دائرة تخطيط الشبكات",
+  "دائرة الانشاءات",
+  "دائرة خدمات العملاء",
+  "دائرة العدادات الذكية"
+];
+
 export default function LetterList({ userRole, currentUser }: { userRole: string; currentUser?: User }) {
   const [letters, setLetters] = useState<Letter[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Status | "">("");
   const [priorityFilter, setPriorityFilter] = useState<Priority | "">("");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("");
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingLetter, setEditingLetter] = useState<Letter | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -51,6 +62,7 @@ export default function LetterList({ userRole, currentUser }: { userRole: string
     if (search) params.append("search", search);
     if (statusFilter) params.append("status", statusFilter);
     if (priorityFilter) params.append("priority", priorityFilter);
+    if (departmentFilter) params.append("department", departmentFilter);
 
     const res = await fetch(`/api/letters?${params.toString()}`);
     const data = await res.json();
@@ -60,7 +72,7 @@ export default function LetterList({ userRole, currentUser }: { userRole: string
 
   useEffect(() => {
     fetchLetters();
-  }, [search, statusFilter, priorityFilter]);
+  }, [search, statusFilter, priorityFilter, departmentFilter]);
 
   const handleDelete = async (id: number) => {
     try {
@@ -228,6 +240,16 @@ export default function LetterList({ userRole, currentUser }: { userRole: string
               <option value="متوسطة">متوسطة</option>
               <option value="منخفضة">منخفضة</option>
             </select>
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 text-sm font-medium max-w-[200px] md:max-w-[250px] truncate"
+            >
+              <option value="">كل الدوائر</option>
+              {DEPARTMENTS.map((dept) => (
+                <option key={dept} value={dept}>{dept}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -323,7 +345,11 @@ export default function LetterList({ userRole, currentUser }: { userRole: string
                       <select
                         value={letter.action_taken || "بانتظار الرد"}
                         onChange={(e) => handleActionChange(letter, e.target.value)}
-                        className="px-3 py-1.5 bg-slate-100 border-none rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 transition-all font-sans"
+                        disabled={currentUser?.permission === "read"}
+                        className={cn(
+                          "px-3 py-1.5 bg-slate-100 border-none rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 transition-all font-sans",
+                          currentUser?.permission === "read" && "opacity-60 cursor-not-allowed bg-slate-200"
+                        )}
                       >
                         <option value="بانتظار الرد">بانتظار الرد</option>
                         <option value="تم الرد">تم الرد</option>

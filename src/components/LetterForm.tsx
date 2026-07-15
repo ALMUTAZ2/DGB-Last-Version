@@ -30,7 +30,7 @@ export default function LetterForm({ letter, readOnly = false, onClose, onSucces
     letter_number: "",
     letter_date: new Date().toISOString().split("T")[0],
     category: "",
-    responsible_department: "دائرة التشغيل والصيانة – الشرق",
+    responsible_department: "دائرة التشغيل و الصيانة - الشرق",
     priority: "متوسطة",
     due_date: "",
     status: "جديد",
@@ -68,8 +68,34 @@ export default function LetterForm({ letter, readOnly = false, onClose, onSucces
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
+
+    // Strict validation check for all fields
+    if (
+      !formData.entity_source?.trim() ||
+      !formData.letter_number?.trim() ||
+      !formData.letter_date?.trim() ||
+      !formData.category?.trim() ||
+      !formData.responsible_department?.trim() ||
+      !formData.priority?.trim() ||
+      !formData.status?.trim()
+    ) {
+      setError("يرجى تعبئة جميع الحقول الأساسية المطلوبة (الجهة، رقم الخطاب، تاريخ الخطاب، الموضوع، الجهة المسؤولة، والأولوية).");
+      return;
+    }
+
+    if (formData.status === "مغلق") {
+      if (
+        !formData.outgoing_letter_number?.trim() ||
+        !formData.outgoing_letter_date?.trim() ||
+        !formData.close_date?.trim()
+      ) {
+        setError("يرجى تعبئة جميع تفاصيل الإغلاق والرد (رقم الخطاب الصادر، تاريخ الرد، وتاريخ الإغلاق الفعلي) لإغلاق هذا الخطاب.");
+        return;
+      }
+    }
+
+    setLoading(true);
 
     const url = letter ? `/api/letters/${letter.id}` : "/api/letters";
     const method = letter ? "PUT" : "POST";
@@ -167,6 +193,7 @@ export default function LetterForm({ letter, readOnly = false, onClose, onSucces
             <div className="space-y-2">
               <label className="text-sm font-bold text-slate-700">الموضوع</label>
               <input
+                required
                 type="text"
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
@@ -181,11 +208,11 @@ export default function LetterForm({ letter, readOnly = false, onClose, onSucces
                 onChange={(e) => setFormData({ ...formData, responsible_department: e.target.value })}
                 className="w-full px-4 py-3 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 transition-all"
               >
-                <option value="دائرة التشغيل والصيانة – الشرق">دائرة التشغيل والصيانة – الشرق</option>
-                <option value="دائرة التشغيل والصيانة – الغرب">دائرة التشغيل والصيانة – الغرب</option>
-                <option value="دائرة دعم التشغيل والصيانة">دائرة دعم التشغيل والصيانة</option>
+                <option value="دائرة التشغيل و الصيانة - الشرق">دائرة التشغيل و الصيانة - الشرق</option>
+                <option value="دائرة التشغيل و الصيانة - الغرب">دائرة التشغيل و الصيانة - الغرب</option>
+                <option value="دائرة دعم التشغيل و الصيانة">دائرة دعم التشغيل و الصيانة</option>
                 <option value="دائرة تخطيط الشبكات">دائرة تخطيط الشبكات</option>
-                <option value="دائرة الإنشاءات">دائرة الإنشاءات</option>
+                <option value="دائرة الانشاءات">دائرة الانشاءات</option>
                 <option value="دائرة خدمات العملاء">دائرة خدمات العملاء</option>
                 <option value="دائرة العدادات الذكية">دائرة العدادات الذكية</option>
               </select>
@@ -230,6 +257,7 @@ export default function LetterForm({ letter, readOnly = false, onClose, onSucces
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700">رقم الخطاب الصادر</label>
                 <input
+                  required
                   type="text"
                   placeholder="رقم الخطاب الصادر للرد..."
                   value={formData.outgoing_letter_number || ""}
@@ -240,6 +268,7 @@ export default function LetterForm({ letter, readOnly = false, onClose, onSucces
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700">تاريخ الخطاب (الرد)</label>
                 <input
+                  required
                   type="date"
                   value={formData.outgoing_letter_date || formData.close_date || ""}
                   onChange={(e) => setFormData({ 
@@ -253,6 +282,7 @@ export default function LetterForm({ letter, readOnly = false, onClose, onSucces
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700">تاريخ الإغلاق الفعلي</label>
                 <input
+                  required
                   type="date"
                   value={formData.close_date}
                   onChange={(e) => setFormData({ ...formData, close_date: e.target.value })}
