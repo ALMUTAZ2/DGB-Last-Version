@@ -1199,17 +1199,65 @@ const parseJsonSafely = <T>(
       start >= 0 &&
       end > start
     ) {
-      cleaned =
-        repairCommonJsonProblems(
-          cleaned.slice(
-            start,
-            end + 1
-          )
-        );
+      const sliced = cleaned.slice(
+        start,
+        end + 1
+      );
 
-      return JSON.parse(
-        cleaned
-      ) as T;
+      // Auto-close any unclosed brackets in the sliced string
+      let inString = false;
+      let isEscaped = false;
+      const stack: ("{" | "[")[] = [];
+
+      for (let i = 0; i < sliced.length; i++) {
+        const char = sliced[i];
+        if (isEscaped) {
+          isEscaped = false;
+          continue;
+        }
+        if (char === "\\") {
+          isEscaped = true;
+          continue;
+        }
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+        if (!inString) {
+          if (char === "{") {
+            stack.push("{");
+          } else if (char === "[") {
+            stack.push("[");
+          } else if (char === "}") {
+            if (stack[stack.length - 1] === "{") {
+              stack.pop();
+            }
+          } else if (char === "]") {
+            if (stack[stack.length - 1] === "[") {
+              stack.pop();
+            }
+          }
+        }
+      }
+
+      let suffix = "";
+      for (let i = stack.length - 1; i >= 0; i--) {
+        if (stack[i] === "{") {
+          suffix += "}";
+        } else if (stack[i] === "[") {
+          suffix += "]";
+        }
+      }
+
+      cleaned = repairCommonJsonProblems(sliced + suffix);
+
+      try {
+        return JSON.parse(
+          cleaned
+        ) as T;
+      } catch (innerErr: any) {
+        console.error("JSON parse failed after repair:", innerErr.message);
+      }
     }
 
     throw new Error(
