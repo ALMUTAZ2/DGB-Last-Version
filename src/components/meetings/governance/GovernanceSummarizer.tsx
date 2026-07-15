@@ -345,102 +345,499 @@ export default function GovernanceSummarizer() {
     }
   };
 
-  const collectPageStyles = (): string => {
-    const cssParts: string[] = [];
-    for (const styleSheet of Array.from(document.styleSheets)) {
-      try {
-        const rules = Array.from(styleSheet.cssRules || []);
-        cssParts.push(rules.map(rule => rule.cssText).join("\n"));
-      } catch {
-        /* بعض الملفات الخارجية تمنع قراءة cssRules. نتجاوزها دون تعطيل التصدير. */
-        console.warn("تعذر قراءة أحد ملفات CSS:", styleSheet.href);
-      }
+ const exportPDF = async () => {
+  if (!finalReport || isExporting) return;
+
+  setIsExporting(true);
+
+  let exportContainer: HTMLDivElement | null = null;
+  let exportStyle: HTMLStyleElement | null = null;
+
+  try {
+    const reportElement =
+      document.getElementById("report-content");
+
+    if (!reportElement) {
+      throw new Error(
+        "لم يتم العثور على محتوى التقرير."
+      );
     }
-    return cssParts.join("\n");
-  };
 
-  const exportPDF = async () => {
-    if (!finalReport || isExporting) {
-      return;
-    }
+    /*
+     * إنشاء نسخة من محتوى التقرير.
+     */
+    const reportClone =
+      reportElement.cloneNode(true) as HTMLElement;
 
-    setIsExporting(true);
+    reportClone.removeAttribute("id");
+    reportClone.removeAttribute("class");
+    reportClone.setAttribute("dir", "rtl");
 
-    try {
-      const reportElement = document.getElementById("report-content");
-      if (!reportElement) {
-        throw new Error("لم يتم العثور على محتوى التقرير.");
-      }
+    /*
+     * إزالة الفواصل الأفقية الناتجة من Markdown.
+     */
+    reportClone
+      .querySelectorAll("hr")
+      .forEach(hr => hr.remove());
 
-      /* نرسل HTML نفسه الظاهر في الصفحة. */
-      const html = reportElement.outerHTML;
-
-      /* نرسل CSS المستخدم حاليًا في التطبيق. */
-      const css = collectPageStyles();
-
-      const meetingDay = getArabicDayName(meetingDate);
-      const safeTitle = (meetingTitle.trim() || "تقرير الاجتماع")
-        .replace(/[\\/:*?"<>|]/g, "-");
-
-      const fileName = [safeTitle, meetingDate, meetingDay]
-        .filter(Boolean)
-        .join(" - ") + ".pdf";
-
-      const response = await fetch("/api/export-pdf", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          html,
-          css,
-          fileName
-        })
+    /*
+     * إزالة تنسيقات Tailwind من نسخة PDF فقط.
+     */
+    reportClone
+      .querySelectorAll<HTMLElement>("*")
+      .forEach(node => {
+        node.removeAttribute("class");
+        node.removeAttribute("style");
       });
 
-      if (!response.ok) {
-        let errorMessage = "فشل تصدير ملف PDF.";
-        try {
-          const errorData = await response.json();
-          if (errorData?.error) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          const errorText = await response.text();
-          if (errorText) {
-            errorMessage = errorText;
-          }
-        }
-        throw new Error(errorMessage);
+    /*
+     * نعتمد على الهيكل الطبيعي للمستند المستخرج من الـ Markdown مباشرة، 
+     * والذي يحتوي على العناوين والفقرات والجداول مرتبة بشكل ممتاز.
+     */
+
+    /*
+     * حاوية مؤقتة داخل الصفحة.
+     * لا نستخدم iframe لتفادي توقف التصدير.
+     */
+    exportContainer =
+      document.createElement("div");
+
+    exportContainer.id =
+      "pdf-export-container";
+
+    exportContainer.setAttribute(
+      "dir",
+      "rtl"
+    );
+
+    exportContainer.style.position =
+      "fixed";
+
+    exportContainer.style.left =
+      "-10000px";
+
+    exportContainer.style.top =
+      "0";
+
+    exportContainer.style.width =
+      "210mm";
+
+    exportContainer.style.minHeight =
+      "297mm";
+
+    exportContainer.style.backgroundColor =
+      "#ffffff";
+
+    exportContainer.style.visibility =
+      "visible";
+
+    exportContainer.style.opacity =
+      "1";
+
+    exportContainer.style.pointerEvents =
+      "none";
+
+    exportContainer.style.zIndex =
+      "-9999";
+
+    /*
+     * الغلاف الداخلي بحجم مناسب لورقة A4.
+     */
+    const pdfWrapper =
+      document.createElement("main");
+
+    pdfWrapper.className =
+      "pdf-wrapper";
+
+    pdfWrapper.appendChild(reportClone);
+
+    const endSpacer =
+      document.createElement("div");
+
+    endSpacer.className =
+      "pdf-end-spacer";
+
+    pdfWrapper.appendChild(endSpacer);
+
+    exportContainer.appendChild(pdfWrapper);
+
+    /*
+     * CSS خاص بالـPDF فقط.
+     */
+    exportStyle =
+      document.createElement("style");
+
+    exportStyle.id =
+      "pdf-export-styles";
+
+    exportStyle.textContent = `
+      #pdf-export-container,
+      #pdf-export-container * {
+        box-sizing: border-box;
       }
 
-      const pdfBlob = await response.blob();
-      if (pdfBlob.size === 0) {
-        throw new Error("تم إنشاء ملف PDF فارغ.");
+      #pdf-export-container {
+        direction: rtl;
+        text-align: right;
+        background: #ffffff;
+        color: #1e293b;
+        font-family: Arial, Tahoma, "Segoe UI", sans-serif;
       }
 
-      const downloadUrl = URL.createObjectURL(pdfBlob);
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      #pdf-export-container .pdf-wrapper {
+        width: 182mm;
+        margin: 0 auto;
+        padding: 8mm 4mm 16mm;
+        direction: rtl;
+        text-align: right;
+        overflow: visible;
+        background: #ffffff;
+      }
 
-      window.setTimeout(() => {
-        URL.revokeObjectURL(downloadUrl);
-      }, 1000);
-    } catch (error) {
-      console.error("PDF export error:", error);
-      alert(
-        error instanceof Error
-          ? `تعذر تصدير ملف PDF:\n${error.message}`
-          : "تعذر تصدير ملف PDF."
-      );
-    } finally {
-      setIsExporting(false);
+      /* تنسيق العنوان الرئيسي للاجتماع (H1) */
+      #pdf-export-container h1 {
+        font-size: 24px;
+        color: #0f172a;
+        font-weight: 700;
+        margin-top: 0;
+        margin-bottom: 5mm;
+        padding-bottom: 3mm;
+        border-bottom: 2.5px solid #cbd5e1;
+        line-height: 1.45;
+      }
+
+      /* تنسيق تفاصيل تاريخ ويوم الاجتماع أسفل العنوان مباشرة */
+      #pdf-export-container h1 + p {
+        font-size: 13.5px;
+        color: #475569;
+        margin-top: 0;
+        margin-bottom: 8mm;
+        border-bottom: 1px dashed #e2e8f0;
+        padding-bottom: 4mm;
+        font-weight: 500;
+      }
+
+      /* تنسيق العناوين والمحاور الرئيسية للاجتماع (H2) */
+      #pdf-export-container h2 {
+        display: block;
+        width: 100%;
+        font-size: 18px;
+        color: #0f172a;
+        font-weight: 700;
+        margin-top: 11mm; /* مسافة علوية ممتازة وواضحة جداً تفصل المحور عن المحور السابق */
+        margin-bottom: 4.5mm; /* مسافة مناسبة تحت المحور مباشرة قبل المحتوى الخاص به */
+        padding-bottom: 2mm;
+        border-bottom: 1.5px solid #cbd5e1; /* خط تجميلي يفصل المحور */
+        page-break-after: avoid;
+        break-after: avoid-page;
+      }
+
+      /* المحور الأول بعد كتلة العنوان والتاريخ يجب أن لا يبتعد كثيراً من الأعلى */
+      #pdf-export-container h1 + p + h2,
+      #pdf-export-container .pdf-wrapper > h2:first-of-type {
+        margin-top: 2mm;
+      }
+
+      /* تنسيق العناوين الفرعية (H3) */
+      #pdf-export-container h3 {
+        font-size: 14.5px;
+        color: #0369a1;
+        font-weight: 700;
+        margin-top: 5mm;
+        margin-bottom: 2.5mm;
+        page-break-after: avoid;
+        break-after: avoid-page;
+      }
+
+      /* تنسيق الفقرات والنصوص العادية */
+      #pdf-export-container p {
+        font-size: 12.5px;
+        line-height: 1.85;
+        color: #334155;
+        margin-top: 0;
+        margin-bottom: 4mm;
+        text-align: justify;
+      }
+
+      /* جعل النصوص العريضة واضحة */
+      #pdf-export-container strong,
+      #pdf-export-container b {
+        font-weight: 700;
+        color: #0f172a;
+      }
+
+      /* تنسيق القوائم النقطية والرقمية بمسافات هوامش مريحة للعين */
+      #pdf-export-container ul,
+      #pdf-export-container ol {
+        margin-top: 1mm;
+        margin-bottom: 5mm;
+        padding-right: 6mm;
+        padding-left: 0;
+        direction: rtl;
+        text-align: right;
+      }
+
+      #pdf-export-container li {
+        font-size: 12.5px;
+        line-height: 1.8;
+        color: #334155;
+        margin-bottom: 2.5mm;
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
+
+      #pdf-export-container li::marker {
+        color: #0284c7;
+      }
+
+      /* تنسيق الجداول والمهام المطلوبة لتظهر بشكل احترافي */
+      #pdf-export-container table {
+        width: 100%;
+        max-width: 100%;
+        margin-top: 4mm;
+        margin-bottom: 6mm;
+        border-collapse: collapse;
+        border-spacing: 0;
+        table-layout: fixed;
+        direction: rtl;
+        text-align: right;
+        font-size: 11px;
+        page-break-inside: auto;
+        break-inside: auto;
+      }
+
+      #pdf-export-container thead {
+        display: table-header-group;
+      }
+
+      #pdf-export-container tbody {
+        display: table-row-group;
+      }
+
+      #pdf-export-container tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid-page !important;
+      }
+
+      #pdf-export-container th,
+      #pdf-export-container td {
+        border: 1px solid #cbd5e1;
+        padding: 2.5mm 3mm;
+        vertical-align: middle;
+        direction: rtl;
+        text-align: right;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.6;
+      }
+
+      #pdf-export-container th {
+        background: #f1f5f9;
+        color: #0f172a;
+        font-weight: 700;
+        text-align: center;
+      }
+
+      /* توزيع عرض أعمدة جدول المهام بشكل متناسق (المهمة | المسؤول | الموعد النهائي | الحالة) */
+      #pdf-export-container th:nth-child(1),
+      #pdf-export-container td:nth-child(1) {
+        width: 52%;
+      }
+
+      #pdf-export-container th:nth-child(2),
+      #pdf-export-container td:nth-child(2) {
+        width: 18%;
+      }
+
+      #pdf-export-container th:nth-child(3),
+      #pdf-export-container td:nth-child(3) {
+        width: 18%;
+        text-align: center;
+      }
+
+      #pdf-export-container th:nth-child(4),
+      #pdf-export-container td:nth-child(4) {
+        width: 12%;
+        text-align: center;
+      }
+
+      #pdf-export-container a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      #pdf-export-container code,
+      #pdf-export-container pre {
+        font-family: "Courier New", monospace;
+        white-space: pre-wrap;
+      }
+
+      .pdf-end-spacer {
+        display: block;
+        width: 100%;
+        height: 15mm;
+        min-height: 15mm;
+        clear: both;
+      }
+    `;
+
+    document.head.appendChild(exportStyle);
+    document.body.appendChild(exportContainer);
+
+    /*
+     * انتظار تطبيق CSS واحتساب ارتفاع العناصر.
+     */
+    await new Promise<void>(resolve =>
+      window.setTimeout(resolve, 500)
+    );
+
+    /*
+     * انتظار تحميل الخطوط الموجودة في الصفحة.
+     */
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
     }
-  };
+
+    await new Promise<void>(resolve =>
+      window.setTimeout(resolve, 200)
+    );
+
+    const contentHeight =
+      Math.ceil(
+        Math.max(
+          pdfWrapper.scrollHeight,
+          pdfWrapper.getBoundingClientRect().height
+        )
+      );
+
+    /*
+     * تثبيت ارتفاع الحاوية ليشمل آخر سطر.
+     */
+    exportContainer.style.height =
+      `${contentHeight + 200}px`;
+
+    await new Promise<void>(resolve =>
+      window.setTimeout(resolve, 200)
+    );
+
+    const meetingDay =
+      getArabicDayName(meetingDate);
+
+    const safeTitle =
+      (
+        meetingTitle.trim() ||
+        "تقرير الاجتماع"
+      )
+        .replace(/[\\/:*?"<>|]/g, "-")
+        .trim();
+
+    const filenameParts = [
+      safeTitle,
+      meetingDate,
+      meetingDay
+    ].filter(Boolean);
+
+    const pdfFileName =
+      `${filenameParts.join(" - ")}.pdf`;
+
+    const html2pdfModule =
+      await import("html2pdf.js");
+
+    const html2pdf =
+      html2pdfModule.default ||
+      html2pdfModule;
+
+    if (
+      typeof html2pdf !==
+      "function"
+    ) {
+      throw new Error(
+        "تعذر تحميل مكتبة تصدير PDF."
+      );
+    }
+
+    const options = {
+      margin: [15, 12, 20, 12] as [
+        number,
+        number,
+        number,
+        number
+      ],
+
+      filename: pdfFileName,
+
+      image: {
+        type: "jpeg" as const,
+        quality: 0.98
+      },
+
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+        backgroundColor: "#ffffff",
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 1200,
+        windowHeight:
+          contentHeight + 250,
+        letterRendering: true,
+        foreignObjectRendering: false
+      },
+
+      jsPDF: {
+        unit: "mm" as const,
+        format: "a4" as const,
+        orientation: "portrait" as const,
+        compress: true
+      },
+
+      pagebreak: {
+        mode: [
+          "css",
+          "legacy"
+        ] as (
+          | "css"
+          | "legacy"
+        )[],
+
+        avoid: [
+          "tr",
+          "thead",
+          "h1",
+          "h2",
+          "h3",
+          "li"
+        ]
+      }
+    };
+
+    await html2pdf()
+      .set(options)
+      .from(pdfWrapper)
+      .save();
+  } catch (error) {
+    console.error(
+      "Error generating PDF:",
+      error
+    );
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "خطأ غير معروف";
+
+    alert(
+      `حدث خطأ أثناء تصدير ملف PDF:\n${message}`
+    );
+  } finally {
+    exportContainer?.remove();
+    exportStyle?.remove();
+
+    setIsExporting(false);
+  }
+};
   return (
     <div className="space-y-6">
       <div className="flex justify-end print:hidden mb-2">
@@ -760,14 +1157,7 @@ export default function GovernanceSummarizer() {
                     </div>
                   </div>
                   
-                  <div 
-                    id="report-content" 
-                    className="prose prose-slate prose-headings:font-bold prose-headings:text-slate-900 prose-a:text-emerald-600 prose-p:text-slate-700 prose-li:text-slate-700 max-w-none print:m-0 print:p-0" 
-                    dir="rtl"
-                    style={{
-                      fontFamily: '"IBM Plex Sans Arabic", Arial, Tahoma, sans-serif'
-                    }}
-                  >
+                  <div id="report-content" className="prose prose-slate prose-headings:font-bold prose-headings:text-slate-900 prose-a:text-emerald-600 prose-p:text-slate-700 prose-li:text-slate-700 max-w-none print:m-0 print:p-0" dir="rtl">
                     <Markdown remarkPlugins={[remarkGfm]}>{finalReport}</Markdown>
                   </div>
                 </div>
