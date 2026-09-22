@@ -151,34 +151,43 @@ interface ModelConfig {
   model: string;
 }
 
+/* ============================================================================
+   MODELS (Optimized for Quotas & Reasoning)
+============================================================================ */
+
+// 1. تنقية النص: استغلال النماذج السريعة ذات السعة العالية (500 طلب يومياً)
 const CLEAN_MODELS: ModelConfig[] = [
+  {
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite"
+  },
   {
     provider: "gemini",
     model: "gemini-3.1-flash-lite"
   },
   {
-    provider: "gemini",
-    model: "gemini-2.5-flash-lite"
-  },
-  {
     provider: "groq",
-    model:
-      "meta-llama/llama-4-scout-17b-16e-instruct"
+    model: "meta-llama/llama-4-scout-17b-16e-instruct"
   }
 ];
 
+// 2. التحليل الشامل: العقل المفكر - استخدام أحدث وأقوى النماذج (حصة 20 طلباً يومياً)
 const ANALYSIS_MODELS: ModelConfig[] = [
   {
     provider: "gemini",
+    model: "gemini-3.8-flash"
+  },
+  {
+    provider: "gemini",
+    model: "gemini-3.7-flash"
+  },
+  {
+    provider: "gemini",
+    model: "gemini-3.6-flash"
+  },
+  {
+    provider: "gemini",
     model: "gemini-3.5-flash"
-  },
-  {
-    provider: "gemini",
-    model: "gemini-3-flash"
-  },
-  {
-    provider: "gemini",
-    model: "gemini-2.5-flash"
   },
   {
     provider: "groq",
@@ -186,14 +195,15 @@ const ANALYSIS_MODELS: ModelConfig[] = [
   }
 ];
 
+// 3. تدقيق المؤشرات: تدقيق سريع بسعة يومية عالية (500 طلب يومياً)
 const KPI_AUDIT_MODELS: ModelConfig[] = [
   {
     provider: "gemini",
-    model: "gemini-3.1-flash-lite"
+    model: "gemini-3.5-flash-lite"
   },
   {
     provider: "gemini",
-    model: "gemini-2.5-flash-lite"
+    model: "gemini-3.1-flash-lite"
   },
   {
     provider: "groq",
@@ -201,22 +211,23 @@ const KPI_AUDIT_MODELS: ModelConfig[] = [
   }
 ];
 
-const EXECUTIVE_AUDIT_MODELS:
-  ModelConfig[] = [
-    {
-      provider: "gemini",
-      model: "gemini-3.1-flash-lite"
-    },
-    {
-      provider: "gemini",
-      model: "gemini-2.5-flash-lite"
-    },
-    {
-      provider: "groq",
-      model: "openai/gpt-oss-120b"
-    }
-  ];
+// 4. التدقيق التنفيذي: مراجعة النواقص بسعة يومية عالية (500 طلب يومياً)
+const EXECUTIVE_AUDIT_MODELS: ModelConfig[] = [
+  {
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite"
+  },
+  {
+    provider: "gemini",
+    model: "gemini-3.1-flash-lite"
+  },
+  {
+    provider: "groq",
+    model: "openai/gpt-oss-120b"
+  }
+];
 
+// 5. مراجعة الجودة: الاعتماد على Groq لتوفير حصة Gemini للمراحل الأساسية
 const REVIEW_MODELS: ModelConfig[] = [
   {
     provider: "groq",
@@ -231,7 +242,6 @@ const REVIEW_MODELS: ModelConfig[] = [
     model: "llama-3.3-70b-versatile"
   }
 ];
-
 const REVIEW_CONFIDENCE_THRESHOLD =
   0.82;
 
