@@ -239,7 +239,7 @@ export default function App() {
           }
           return data;
         } else {
-          throw new Error("الرقم الوظيفي غير مسجل في منصة الحكومة الرقمية أو حدث خطأ");
+          throw new Error("الرقم الوظيفي غير مسجل في منصة الحوكمة الرقمية أو حدث خطأ");
         }
       })
       .then((data) => {
