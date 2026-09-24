@@ -155,93 +155,88 @@ interface ModelConfig {
    MODELS (Optimized for Quotas & Reasoning)
 ============================================================================ */
 
-// 1. تنقية النص: استغلال النماذج السريعة ذات السعة العالية (500 طلب يومياً)
+
+// 1. تنقية النص: استغلال النماذج فائقة السرعة وعالية السعة (500 طلب يومياً)
 const CLEAN_MODELS: ModelConfig[] = [
   {
     provider: "gemini",
     model: "gemini-3.5-flash-lite"
   },
   {
-    provider: "gemini",
-    model: "gemini-3.1-flash-lite"
+    provider: "groq",
+    model: "qwen/qwen3.8-27b"
   },
   {
-    provider: "groq",
-    model: "meta-llama/llama-4-scout-17b-16e-instruct"
+    provider: "gemini",
+    model: "gemini-3.5-flash"
   }
 ];
 
-// 2. التحليل الشامل: العقل المفكر - استخدام أحدث وأقوى النماذج (حصة 20 طلباً يومياً)
+// 2. التحليل الشامل: العقل المفكر - سعة توكن هائلة وتوليد هيكلي متكامل (بدون تأخير تفكير)
 const ANALYSIS_MODELS: ModelConfig[] = [
   {
     provider: "gemini",
-    model: "gemini-3.8-flash"
-  },
-  {
-    provider: "gemini",
-    model: "gemini-3.7-flash"
-  },
-  {
-    provider: "gemini",
-    model: "gemini-3.6-flash"
+    model: "gemini-3.5-flash-lite"
   },
   {
     provider: "gemini",
     model: "gemini-3.5-flash"
   },
   {
-    provider: "groq",
-    model: "openai/gpt-oss-120b"
+    provider: "gemini",
+    model: "gemini-3.6-flash"
   }
 ];
 
-// 3. تدقيق المؤشرات: تدقيق سريع بسعة يومية عالية (500 طلب يومياً)
+// 3. تدقيق المؤشرات: دقة حسابية واستجابة فائقة السرعة
 const KPI_AUDIT_MODELS: ModelConfig[] = [
   {
     provider: "gemini",
     model: "gemini-3.5-flash-lite"
   },
   {
-    provider: "gemini",
-    model: "gemini-3.1-flash-lite"
+    provider: "groq",
+    model: "qwen/qwen3.8-27b"
   },
   {
-    provider: "groq",
-    model: "qwen/qwen3-32b"
+    provider: "gemini",
+    model: "gemini-3.5-flash"
   }
 ];
 
-// 4. التدقيق التنفيذي: مراجعة النواقص بسعة يومية عالية (500 طلب يومياً)
+// 4. التدقيق التنفيذي: مراجعة القرارات والمهام والمخاطر
 const EXECUTIVE_AUDIT_MODELS: ModelConfig[] = [
   {
     provider: "gemini",
     model: "gemini-3.5-flash-lite"
   },
   {
-    provider: "gemini",
-    model: "gemini-3.1-flash-lite"
+    provider: "groq",
+    model: "qwen/qwen3.8-27b"
   },
   {
-    provider: "groq",
-    model: "openai/gpt-oss-120b"
+    provider: "gemini",
+    model: "gemini-3.5-flash"
   }
 ];
 
-// 5. مراجعة الجودة: الاعتماد على Groq لتوفير حصة Gemini للمراحل الأساسية
+// 5. مراجعة الجودة: تدقيق ذكي ومطابقة الثقة
 const REVIEW_MODELS: ModelConfig[] = [
   {
     provider: "groq",
-    model: "openai/gpt-oss-120b"
+    model: "qwen/qwen3.8-27b"
   },
   {
     provider: "groq",
-    model: "qwen/qwen3-32b"
+    model: "openai/gpt-oss-20b"
   },
   {
-    provider: "groq",
-    model: "llama-3.3-70b-versatile"
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite"
   }
 ];
+
+
 const REVIEW_CONFIDENCE_THRESHOLD =
   0.82;
 
@@ -4377,14 +4372,7 @@ const reviewLowConfidenceItems =
 
     model?: string;
   }> => {
-    if (
-      !getGroqApiKey()
-    ) {
-      return {
-        analysis
-      };
-    }
-
+    // Review step executes seamlessly using backend proxy configuration
     const candidates =
       collectReviewCandidates(
         analysis
@@ -5977,7 +5965,9 @@ export const governanceService = {
         id: number,
 
         status:
-          GovernanceStepStatus
+          GovernanceStepStatus,
+
+        model?: string
       ) => void,
 
       meetingTitle?:
@@ -6066,7 +6056,8 @@ export const governanceService = {
 
         updateStep(
           1,
-          "success"
+          "success",
+          cleanResult.model
         );
 
         /* ================================================================
@@ -6131,7 +6122,8 @@ export const governanceService = {
 
         updateStep(
           2,
-          "success"
+          "success",
+          analysisResult.model
         );
 
         /* ================================================================
@@ -6175,7 +6167,8 @@ export const governanceService = {
 
         updateStep(
           3,
-          "success"
+          "success",
+          modelsUsed.kpiAudit || KPI_AUDIT_MODELS[0].model
         );
 
         /* ================================================================
@@ -6220,7 +6213,8 @@ export const governanceService = {
 
         updateStep(
           4,
-          "success"
+          "success",
+          modelsUsed.executiveAudit || EXECUTIVE_AUDIT_MODELS[0].model
         );
 
         /*
@@ -6275,7 +6269,8 @@ export const governanceService = {
 
         updateStep(
           5,
-          "success"
+          "success",
+          modelsUsed.review || REVIEW_MODELS[0].model
         );
 
         /*
@@ -6315,7 +6310,8 @@ analysis =
 
         updateStep(
           6,
-          "success"
+          "success",
+          "محرك الحوكمة التنفيذية"
         );
 
         return {
@@ -6371,7 +6367,9 @@ analysis =
         id: number,
 
         status:
-          GovernanceStepStatus
+          GovernanceStepStatus,
+
+        model?: string
       ) => void,
 
       meetingTitle?:
