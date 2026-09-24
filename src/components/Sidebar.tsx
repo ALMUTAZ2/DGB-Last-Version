@@ -59,7 +59,7 @@ export default function Sidebar({ activeTab, setActiveTab, user, isOpen, onClose
       >
         <div className="p-6 border-b border-slate-800 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-emerald-400">منصة الحكومة الرقمية</h1>
+            <h1 className="text-xl font-bold text-emerald-400">منصة الحوكمة الرقمية</h1>
             <p className="text-xs text-slate-400 mt-1">نظام المتابعة الإدارية</p>
           </div>
           
